@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ein grimmiges Handy -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#3B2A1A"
+        android:pathData="M40,26h28a5,5 0,0 1,5 5v46a5,5 0,0 1,-5 5h-28a5,5 0,0 1,-5 -5v-46a5,5 0,0 1,5 -5z" />
+    <path android:fillColor="#FF00CC"
+        android:pathData="M40,32h28v40h-28z" />
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M44,44a4,4 0,1 0,8 0a4,4 0,1 0,-8 0zM56,44a4,4 0,1 0,8 0a4,4 0,1 0,-8 0z" />
+    <path android:fillColor="#000000"
+        android:pathData="M46,44a2,2 0,1 0,4 0a2,2 0,1 0,-4 0zM58,44a2,2 0,1 0,4 0a2,2 0,1 0,-4 0z" />
+    <path android:strokeColor="#000000" android:strokeWidth="2.5"
+        android:pathData="M43,38l9,3M65,38l-9,3M45,63q9,-7 18,0" />
+    <path android:fillColor="#9ACD32"
+        android:pathData="M52,76h4v2h-4z" />
+</vector>
