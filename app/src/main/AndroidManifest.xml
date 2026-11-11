@@ -11,6 +11,10 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Riesige Schrift: der Nutzer erteilt das in den Einstellungen -->
+    <uses-permission
+        android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
     <!-- Nur für die Update-Suche (GitHub-Release) -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -47,6 +51,7 @@
         </activity>
         <activity android:name=".SettingsActivity" android:exported="false" />
         <activity android:name=".ExemptAppsActivity" android:exported="false" />
+        <activity android:name=".ReportActivity" android:exported="false" />
 
         <service
             android:name=".MonitorService"
@@ -69,6 +74,27 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_config" />
         </service>
+
+        <service
+            android:name=".NotificationWatcher"
+            android:exported="true"
+            android:label="@string/notif_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".WidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info" />
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

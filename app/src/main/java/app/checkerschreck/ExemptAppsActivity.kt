@@ -27,7 +27,8 @@ class ExemptAppsActivity : AppCompatActivity() {
         col.text(
             "In diesen Apps wird die Zeit nicht gezählt und das Handy nie hässlich. " +
                 "Rezept-Apps werden automatisch erkannt (z. B. Chefkoch, Kitchen Stories, Cookidoo). " +
-                "Rezepte im Browser erkennt die optionale Bedienungshilfe.",
+                "Rezepte im Browser erkennt die optionale Bedienungshilfe. " +
+                "Eine App hinzuzufügen ist eine Lockerung und läuft über den Schummel-Schutz.",
             14f, topDp = 4, alpha = 0.8f,
         )
         val search = EditText(this).apply {
@@ -75,7 +76,25 @@ class ExemptAppsActivity : AppCompatActivity() {
             val cb = MaterialCheckBox(this).apply {
                 text = if (a.auto) "${a.label}  🥕 automatisch als Rezept-App erkannt" else a.label
                 isChecked = isExempt(a)
-                setOnCheckedChangeListener { _, checked -> toggle(a, checked) }
+            }
+            var internal = false
+            cb.setOnCheckedChangeListener { _, checked ->
+                if (internal) return@setOnCheckedChangeListener
+                if (!checked) {
+                    toggle(a, false) // Ausnahme entfernen ist strenger: geht sofort
+                    return@setOnCheckedChangeListener
+                }
+                internal = true
+                cb.isChecked = false
+                internal = false
+                val change = if (a.auto) Guard.autoChange(a.pkg, a.label) else Guard.exemptChange(a.pkg, a.label)
+                Guard.request(this, p, change) { applied ->
+                    if (applied) {
+                        internal = true
+                        cb.isChecked = true
+                        internal = false
+                    }
+                }
             }
             list.addView(cb, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
         }
@@ -84,9 +103,7 @@ class ExemptAppsActivity : AppCompatActivity() {
     private fun toggle(a: AppEntry, checked: Boolean) {
         if (a.auto) {
             p.autoRecipeDisabled = if (checked) p.autoRecipeDisabled - a.pkg else p.autoRecipeDisabled + a.pkg
-            if (checked) p.extraExempt = p.extraExempt - a.pkg
-        } else {
-            p.extraExempt = if (checked) p.extraExempt + a.pkg else p.extraExempt - a.pkg
         }
+        if (!checked) p.extraExempt = p.extraExempt - a.pkg else if (!a.auto) p.extraExempt = p.extraExempt + a.pkg
     }
 }

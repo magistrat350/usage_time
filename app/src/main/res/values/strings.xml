@@ -3,4 +3,6 @@
     <string name="app_name">Checker-Schreck</string>
     <string name="a11y_label">Checker-Schreck Rezept-Erkennung</string>
     <string name="a11y_description">Erkennt, ob gerade ein Rezept auf dem Bildschirm zu sehen ist (z. B. im Browser), damit das Handy beim Kochen nicht hässlich gemacht wird. Es wird nur nach Wörtern wie „Zutaten“ oder „Zubereitung“ gesucht. Nichts wird gespeichert oder gesendet.</string>
+    <string name="notif_label">Checker-Schreck Auslöser-Analyse</string>
+    <string name="widget_description">Checks und Restzeit auf einen Blick</string>
 </resources>

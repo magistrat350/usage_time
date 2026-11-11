@@ -44,6 +44,16 @@ object Permissions {
         return enabled.split(':').any { ComponentName.unflattenFromString(it) == me }
     }
 
+    fun hasNotificationAccess(ctx: Context) =
+        androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(ctx).contains(ctx.packageName)
+
+    fun notificationAccessIntent() = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+
+    fun canWriteSettings(ctx: Context) = Settings.System.canWrite(ctx)
+
+    fun writeSettingsIntent(ctx: Context) =
+        Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:${ctx.packageName}"))
+
     fun hasSecureSettings(ctx: Context) =
         ctx.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED
 

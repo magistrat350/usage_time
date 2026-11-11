@@ -138,33 +138,89 @@ object Analyzer {
         return out
     }
 
-    /** Meistgenutzte Apps seit [since] aus den Android-Nutzungsereignissen. */
+    /**
+     * Vordergrundzeit pro App zwischen [since] und [now] aus den Android-Nutzungsereignissen.
+     * Zählt pro App die Spanne, in der mindestens eine ihrer Activities im Vordergrund war.
+     */
     @Suppress("DEPRECATION")
-    fun topApps(ctx: Context, since: Long, now: Long, limit: Int = 5): List<Pair<String, Long>> {
-        if (!Permissions.hasUsageAccess(ctx)) return emptyList()
-        val usm = ctx.getSystemService(UsageStatsManager::class.java) ?: return emptyList()
-        val pm = ctx.packageManager
-        val home = pm.resolveActivity(
-            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), PackageManager.MATCH_DEFAULT_ONLY,
-        )?.activityInfo?.packageName
+    fun foregroundTotals(ctx: Context, since: Long, now: Long): Map<String, Long> {
+        if (!Permissions.hasUsageAccess(ctx)) return emptyMap()
+        val usm = ctx.getSystemService(UsageStatsManager::class.java) ?: return emptyMap()
         val totals = HashMap<String, Long>()
-        val resumedAt = HashMap<String, Long>()
-        val events = usm.queryEvents(since, now)
-        val e = UsageEvents.Event()
-        while (events.hasNextEvent()) {
-            events.getNextEvent(e)
-            when (e.eventType) {
-                UsageEvents.Event.MOVE_TO_FOREGROUND -> resumedAt[e.packageName] = e.timeStamp
-                UsageEvents.Event.MOVE_TO_BACKGROUND -> resumedAt.remove(e.packageName)?.let {
-                    totals[e.packageName] = (totals[e.packageName] ?: 0L) + (e.timeStamp - it)
+        val active = HashMap<String, HashSet<String>>() // Paket -> Activities im Vordergrund
+        val startedAt = HashMap<String, Long>()
+        val seen = HashSet<String>()
+        runCatching {
+            val events = usm.queryEvents(since, now)
+            val e = UsageEvents.Event()
+            while (events.hasNextEvent()) {
+                events.getNextEvent(e)
+                val pkg = e.packageName ?: continue
+                val cls = e.className ?: ""
+                when (e.eventType) {
+                    UsageEvents.Event.MOVE_TO_FOREGROUND -> {
+                        val set = active.getOrPut(pkg) { HashSet() }
+                        if (set.isEmpty()) startedAt[pkg] = e.timeStamp
+                        set += cls
+                        seen += pkg
+                    }
+                    UsageEvents.Event.MOVE_TO_BACKGROUND -> {
+                        val set = active[pkg]
+                        if (set != null && set.remove(cls)) {
+                            if (set.isEmpty()) {
+                                val start = startedAt.remove(pkg) ?: e.timeStamp
+                                totals[pkg] = (totals[pkg] ?: 0L) + (e.timeStamp - start)
+                            }
+                        } else if (pkg !in seen) {
+                            // War schon vor [since] im Vordergrund
+                            totals[pkg] = (totals[pkg] ?: 0L) + (e.timeStamp - since)
+                        }
+                        seen += pkg
+                    }
                 }
             }
         }
-        resumedAt.forEach { (p, t) -> totals[p] = (totals[p] ?: 0L) + (now - t) }
-        return totals.filterKeys { it != home && it != ctx.packageName }
+        startedAt.forEach { (pkg, t) -> totals[pkg] = (totals[pkg] ?: 0L) + (now - t) }
+        return totals
+    }
+
+    private fun homePackage(ctx: Context): String? = ctx.packageManager.resolveActivity(
+        Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), PackageManager.MATCH_DEFAULT_ONLY,
+    )?.activityInfo?.packageName
+
+    /** Meistgenutzte Apps seit [since]. */
+    fun topApps(ctx: Context, since: Long, now: Long, limit: Int = 5): List<Pair<String, Long>> {
+        val home = homePackage(ctx)
+        return foregroundTotals(ctx, since, now).filterKeys { it != home && it != ctx.packageName }
             .entries.sortedByDescending { it.value }
             .take(limit)
             .map { appLabel(ctx, it.key) to it.value }
+    }
+
+    /**
+     * Nutzung zwischen [since] und [now], die nicht unter eine feste Ausnahme fällt. Damit wird
+     * Zeit nachgetragen, in der die Überwachung nicht lief (z. B. nach "Stopp erzwingen").
+     */
+    fun unmonitoredMs(ctx: Context, prefs: Prefs, since: Long, now: Long): Long {
+        val home = homePackage(ctx)
+        return foregroundTotals(ctx, since, now)
+            .filterKeys { it != home && it != "com.android.systemui" && !RecipeDetector.isExemptPackage(ctx, prefs, it) }
+            .values.sum()
+    }
+
+    data class TriggerApp(val label: String, val checks: Int, val notifications: Int)
+
+    /** [known]: Checks, bei denen der Auslöser erfasst wurde. [spontaneous]: davon ohne Benachrichtigung. */
+    data class TriggerStats(val known: Int, val spontaneous: Int, val byApp: List<TriggerApp>)
+
+    /** Welche Benachrichtigungen haben seit [since] Checks ausgelöst? */
+    fun triggers(ctx: Context, since: Long): TriggerStats {
+        val t = UsageLog.read(ctx, since).triggers
+        val counts = NotificationTriggers.counts(ctx, since)
+        val byApp = t.values.filter { it != "-" }.groupingBy { it }.eachCount()
+            .entries.sortedByDescending { it.value }
+            .map { TriggerApp(appLabel(ctx, it.key), it.value, counts[it.key] ?: 0) }
+        return TriggerStats(t.size, t.values.count { it == "-" }, byApp)
     }
 
     fun appLabel(ctx: Context, pkg: String): String = runCatching {

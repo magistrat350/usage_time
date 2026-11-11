@@ -23,6 +23,8 @@ object RecipeDetector {
     private val ALWAYS_EXEMPT = setOf(
         "com.google.android.dialer", "com.android.dialer", "com.samsung.android.dialer",
         "com.samsung.android.incallui", "com.android.incallui", "com.android.server.telecom",
+        // Wecker
+        "com.google.android.deskclock", "com.android.deskclock", "com.sec.android.app.clockpackage",
     )
 
     private val labelCache = HashMap<String, Boolean>()
@@ -55,12 +57,16 @@ object RecipeDetector {
     fun isRecipeApp(ctx: Context, prefs: Prefs, pkg: String) =
         isAutoRecipeApp(ctx, pkg) && pkg !in prefs.autoRecipeDisabled
 
+    /** Feste Ausnahme (unabhängig vom Bildschirminhalt)? */
+    fun isExemptPackage(ctx: Context, prefs: Prefs, pkg: String) =
+        pkg == ctx.packageName || pkg in ALWAYS_EXEMPT || pkg in prefs.extraExempt || isRecipeApp(ctx, prefs, pkg)
+
     /** Grund für eine Ausnahme oder null, wenn ganz normal gezählt/bestraft wird. */
     fun exemptReason(ctx: Context, prefs: Prefs, fg: String?, now: Long): String? {
         if (prefs.cookingUntil > now) return "Kochmodus (noch ${fmtDuration(prefs.cookingUntil - now)})"
         if (fg == null) return null
         if (fg == ctx.packageName) return "Checker-Schreck selbst"
-        if (fg in ALWAYS_EXEMPT) return "Telefonat"
+        if (fg in ALWAYS_EXEMPT) return "Telefon/Wecker"
         if (fg in prefs.extraExempt) return "Ausnahme-App"
         if (isRecipeApp(ctx, prefs, fg)) return "Rezept-App"
         if (prefs.recipeContentDetection && isContentRecipeFresh(fg, now)) return "Rezept geöffnet"

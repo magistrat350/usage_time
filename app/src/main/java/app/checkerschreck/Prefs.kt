@@ -64,6 +64,35 @@ class Prefs(context: Context) {
     /** Ziel: so viel Prozent unter dem 7-Tage-Schnitt. */
     var adaptiveReductionPct by IntPref(s, "adaptive_reduction_pct", 10)
 
+    /** Schummel-Schutz: 0 = aus, 1 = Satz abtippen, 2 = 24 Stunden warten. */
+    var guardMode by IntPref(s, "guard_mode", 1)
+
+    // Zeitfenster
+    var nightEnabled by BoolPref(s, "night_enabled", true)
+    var nightStartHour by IntPref(s, "night_start_hour", 22)
+    var nightEndHour by IntPref(s, "night_end_hour", 6)
+    var morningBlockEnabled by BoolPref(s, "morning_block_enabled", true)
+    var morningBlockMin by IntPref(s, "morning_block_min", 30)
+    var dayStrictEnabled by BoolPref(s, "day_strict_enabled", true)
+    var dayStartHour by IntPref(s, "day_start_hour", 8)
+    var dayEndHour by IntPref(s, "day_end_hour", 18)
+
+    /** Tagsüber gilt nur dieser Prozentsatz des Session-Limits. */
+    var dayStrictPct by IntPref(s, "day_strict_pct", 50)
+
+    // Doomscroll
+    var doomscrollEnabled by BoolPref(s, "doomscroll_enabled", true)
+
+    /** Beim Endlos-Scrollen läuft die Session-Uhr so viel schneller. */
+    var doomscrollFactor by IntPref(s, "doomscroll_factor", 2)
+
+    // Noch hässlicher
+    var uglyFont by BoolPref(s, "ugly_font", true)
+    var uglyAnimations by BoolPref(s, "ugly_animations", true)
+    var shrinkScreen by BoolPref(s, "shrink_screen", true)
+
+    var weeklyReport by BoolPref(s, "weekly_report", true)
+
     var cookingMinutes by IntPref(s, "cooking_minutes", 45)
     var cookingPerDay by IntPref(s, "cooking_per_day", 2)
 
@@ -101,6 +130,27 @@ class Prefs(context: Context) {
     var adaptiveReport by StringPref(st, "adaptive_report", "")
     var adaptiveReportDay by StringPref(st, "adaptive_report_day", "")
     var adaptiveReportPending by BoolPref(st, "adaptive_report_pending", false)
+
+    // Schummel-Schutz
+    var pendingRaw by StringPref(st, "pending", "")
+    var serviceAlive by BoolPref(st, "service_alive", false)
+    var lastAliveAt by LongPref(st, "last_alive_at", 0L)
+    var backchargedToday by LongPref(st, "backcharged_today", 0L)
+    var permAlertDay by StringPref(st, "perm_alert_day", "")
+
+    // Zeitfenster
+    var morningBlockDay by StringPref(st, "morning_block_day", "")
+    var morningBlockUntil by LongPref(st, "morning_block_until", 0L)
+
+    var scrollMsToday by LongPref(st, "scroll_ms_today", 0L)
+
+    // Ursprüngliche Schriftgröße und Animationen
+    var fontApplied by IntPref(st, "font_applied", 0)
+    var fontOrig by StringPref(st, "font_orig", "")
+    var animApplied by IntPref(st, "anim_applied", 0)
+    var animOrig by StringPref(st, "anim_orig", "")
+
+    var lastReportDay by StringPref(st, "last_report_day", "")
 
     // Updates
     var lastUpdateCheck by LongPref(st, "last_update_check", 0L)

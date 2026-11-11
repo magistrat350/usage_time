@@ -10,7 +10,8 @@ data class Session(val start: Long, val end: Long, val activeMs: Long) {
 
 /**
  * Einfaches Textprotokoll im App-Speicher:
- *   C <ts>                    ein Check (Entsperren)
+ *   C <ts> [auslöser]         ein Check (Entsperren); Auslöser = Paketname der Benachrichtigung
+ *                             davor, "-" = ohne Anlass, fehlt = unbekannt
  *   S <start> <end> <active>  eine beendete Session
  */
 object UsageLog {
@@ -20,7 +21,8 @@ object UsageLog {
     private fun file(ctx: Context) = File(ctx.filesDir, FILE)
 
     @Synchronized
-    fun addCheck(ctx: Context, ts: Long) = append(ctx, "C $ts")
+    fun addCheck(ctx: Context, ts: Long, trigger: String? = null) =
+        append(ctx, if (trigger == null) "C $ts" else "C $ts $trigger")
 
     @Synchronized
     fun addSession(ctx: Context, s: Session) = append(ctx, "S ${s.start} ${s.end} ${s.activeMs}")
@@ -29,19 +31,25 @@ object UsageLog {
         runCatching { file(ctx).appendText(line + "\n") }
     }
 
-    data class Data(val checks: List<Long>, val sessions: List<Session>)
+    data class Data(val checks: List<Long>, val sessions: List<Session>, val triggers: Map<Long, String>)
 
     @Synchronized
     fun read(ctx: Context, since: Long): Data {
         val checks = ArrayList<Long>()
         val sessions = ArrayList<Session>()
+        val triggers = HashMap<Long, String>()
         val f = file(ctx)
-        if (!f.exists()) return Data(checks, sessions)
+        if (!f.exists()) return Data(checks, sessions, triggers)
         runCatching {
             f.forEachLine { line ->
                 val p = line.split(' ')
                 when {
-                    p.size == 2 && p[0] == "C" -> p[1].toLongOrNull()?.let { if (it >= since) checks += it }
+                    (p.size == 2 || p.size == 3) && p[0] == "C" -> p[1].toLongOrNull()?.let {
+                        if (it >= since) {
+                            checks += it
+                            if (p.size == 3) triggers[it] = p[2]
+                        }
+                    }
                     p.size == 4 && p[0] == "S" -> {
                         val s = p[1].toLongOrNull()
                         val e = p[2].toLongOrNull()
@@ -53,7 +61,7 @@ object UsageLog {
         }
         checks.sort()
         sessions.sortBy { it.start }
-        return Data(checks, sessions)
+        return Data(checks, sessions, triggers)
     }
 
     @Synchronized

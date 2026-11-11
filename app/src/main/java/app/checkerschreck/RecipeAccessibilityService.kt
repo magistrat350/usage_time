@@ -17,6 +17,7 @@ class RecipeAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val now = System.currentTimeMillis()
+        if (event?.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED) ScrollMeter.onScroll(now)
         if (now - lastScan < 2500) return
         scanNow()
     }

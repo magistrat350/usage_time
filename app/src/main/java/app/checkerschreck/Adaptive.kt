@@ -11,6 +11,7 @@ data class DayRecord(
     val checks: Int,
     val youtubeMs: Long,
     val longestSessionMs: Long,
+    val scrollMs: Long = 0L,
 )
 
 /** Tagesverlauf (letzte 60 Tage), gespeichert in den Prefs. */
@@ -19,20 +20,21 @@ object History {
 
     fun all(p: Prefs): List<DayRecord> = p.historyRaw.lines().mapNotNull { line ->
         val f = line.split('|')
-        if (f.size != 5) return@mapNotNull null
+        if (f.size < 5) return@mapNotNull null
         DayRecord(
             f[0],
             f[1].toLongOrNull() ?: return@mapNotNull null,
             f[2].toIntOrNull() ?: return@mapNotNull null,
             f[3].toLongOrNull() ?: return@mapNotNull null,
             f[4].toLongOrNull() ?: return@mapNotNull null,
+            f.getOrNull(5)?.toLongOrNull() ?: 0L,
         )
     }
 
     fun add(p: Prefs, r: DayRecord) {
         val list = all(p).filter { it.day != r.day } + r
         p.historyRaw = list.sortedBy { it.day }.takeLast(KEEP).joinToString("\n") {
-            "${it.day}|${it.activeMs}|${it.checks}|${it.youtubeMs}|${it.longestSessionMs}"
+            "${it.day}|${it.activeMs}|${it.checks}|${it.youtubeMs}|${it.longestSessionMs}|${it.scrollMs}"
         }
     }
 

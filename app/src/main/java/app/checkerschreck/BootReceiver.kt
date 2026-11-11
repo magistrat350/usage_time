@@ -11,6 +11,7 @@ class BootReceiver : BroadcastReceiver() {
                 val p = Prefs(context)
                 // Falls der Dienst vorher abgestürzt ist: Farben zurücksetzen
                 SystemColorHack.restore(context, p)
+                SystemTweaks.restore(context, p)
                 if (p.monitoringEnabled) runCatching { MonitorService.start(context) }
             }
         }
