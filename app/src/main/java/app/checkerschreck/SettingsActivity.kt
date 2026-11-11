@@ -26,6 +26,19 @@ class SettingsActivity : AppCompatActivity() {
         }
         slider(limits, "Maximale Hässlich-Stufe", "", 1, 3, { p.maxLevel }) { p.maxLevel = it }
 
+        val yt = col.card("YouTube")
+        slider(yt, "YouTube-Tageslimit (0 = aus)", "min", 0, 120, { p.youtubeLimitMin }, step = 5) {
+            p.youtubeLimitMin = it
+        }
+        switch(yt, "Nach dem Limit YouTube schließen (zurück zum Startbildschirm)", { p.youtubeKick }) {
+            p.youtubeKick = it
+        }
+        yt.text(
+            "5 min vorher kommt eine Warnung. Ab dem Limit ist YouTube sofort Hässlich-Stufe 2, " +
+                "alle weiteren 5 min eine Stufe mehr. Im Kochmodus oder bei erkanntem Rezept zählt die Zeit nicht.",
+            12f, topDp = 6, alpha = 0.7f,
+        )
+
         val checks = col.card("Check-Analyse")
         slider(checks, "Check-Attacke ab", "Checks", 2, 20, { p.burstCount }) { p.burstCount = it }
         slider(checks, "… innerhalb von", "min", 5, 60, { p.burstWindowMin }) { p.burstWindowMin = it }

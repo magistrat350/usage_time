@@ -182,6 +182,14 @@ class MainActivity : AppCompatActivity() {
                     parts += "Noch ${Escalation.minutesToNextLevel(prefs, s.sessionMs)} min bis es hässlich wird"
                 }
                 parts += "Heute aktiv: ${fmtDuration(s.dailyMs)} von ${prefs.dailyLimitMin} min"
+                if (YouTubeLimit.enabled(prefs)) {
+                    val left = YouTubeLimit.limitMs(prefs) - s.youtubeMs
+                    parts += if (left > 0) {
+                        "📺 YouTube: ${fmtDuration(s.youtubeMs)} von ${prefs.youtubeLimitMin} min (noch ${fmtDuration(left)})"
+                    } else {
+                        "📺 YouTube: Limit für heute aufgebraucht"
+                    }
+                }
                 if (s.penaltyUntil > now) parts += "🚨 Check-Strafe noch ${fmtDuration(s.penaltyUntil - now)}"
             }
             statusDetail.text = parts.joinToString("\n")

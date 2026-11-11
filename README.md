@@ -15,6 +15,7 @@ Rezept offen, dann hat sie Verständnis. 🍳
 | **Check-Attacken** | 5 Checks in 15 min → Alarm und 10 min Strafe (sofort hässlich). Doppelt so viele → Stufe 2. |
 | **Analyse** | Checks heute, Reflex-Checks (< 60 s), Ø Abstand, längste Pause, Checks pro Stunde (Diagramm), Hotspot-Stunde, Vergleich mit den letzten 7 Tagen, Top-Apps, Urteil („Notorischer Checker“, „Goldfisch mit WLAN“ …). |
 | **Rezept-Ausnahme** | Rezept-Apps werden am Namen erkannt (Chefkoch, Kitchen Stories, Cookidoo …). Die optionale Bedienungshilfe erkennt Rezepte auch im Browser (Wörter wie „Zutaten“, „Zubereitung“, „Portionen“). Zusätzlich gibt es den Kochmodus (Standard: 2× am Tag je 45 min). |
+| **YouTube-Limit** | 20 min YouTube pro Tag (einstellbar, 0 = aus). 5 min vorher kommt eine Warnung. Danach ist YouTube sofort Stufe 2 (alle 5 min eine Stufe mehr) und die App wirft dich standardmäßig zurück auf den Startbildschirm. Gilt für die YouTube-App (auch Kids/ReVanced), nicht für YouTube im Browser. |
 | **Ausnahme-Apps** | Eigene Liste, z. B. Navi. Telefonate sind immer ausgenommen. |
 
 ### Die Hässlich-Stufen

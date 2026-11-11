@@ -33,6 +33,7 @@ class MonitorService : Service() {
         val sessionMs: Long,
         val dailyMs: Long,
         val penaltyUntil: Long,
+        val youtubeMs: Long,
         val updatedAt: Long,
     )
 
@@ -47,6 +48,9 @@ class MonitorService : Service() {
     private var sessionActiveMs = 0L
     private var dailyActiveMs = 0L
     private var screenActiveMs = 0L
+    private var youtubeMs = 0L
+    private var lastFg: String? = null
+    private var lastKick = 0L
 
     private var ticking = false
     private var lastTick = 0L
@@ -91,6 +95,7 @@ class MonitorService : Service() {
         sessionActiveMs = prefs.sessionActiveMs
         dailyActiveMs = prefs.dailyActiveMs
         screenActiveMs = prefs.screenActiveMs
+        youtubeMs = prefs.youtubeMsToday
         UsageLog.prune(this, now)
         // Aufräumen, falls der Dienst mitten in einer Session beendet wurde
         if (prefs.unlockedAt > 0 &&
@@ -169,7 +174,7 @@ class MonitorService : Service() {
 
     private fun registerCheck(now: Long) {
         if (now - prefs.lastCheckAt < 3000) return
-        rolloverIfNeeded(prefs, now).also { if (it) dailyActiveMs = 0L }
+        if (rolloverIfNeeded(prefs, now)) resetDaily()
         // Session nur zurücksetzen, wenn der Bildschirm lange genug aus war (kein Schummeln
         // durch kurzes Aus- und Einschalten).
         val off = prefs.lastScreenOff
@@ -228,12 +233,13 @@ class MonitorService : Service() {
         sessionActiveMs += dt
         dailyActiveMs += dt
         screenActiveMs += dt
+        if (YouTubeLimit.isYouTube(lastFg)) youtubeMs += dt
         return true
     }
 
     private fun tick() {
         val now = System.currentTimeMillis()
-        if (rolloverIfNeeded(prefs, now)) dailyActiveMs = 0L
+        if (rolloverIfNeeded(prefs, now)) resetDaily()
         tickAccounting(now)
 
         val usable = pm.isInteractive && !km.isKeyguardLocked
@@ -246,6 +252,7 @@ class MonitorService : Service() {
         }
 
         val fg = if (Permissions.hasUsageAccess(this)) tracker.update(now) else null
+        lastFg = fg
         if (now - lastA11yScan > 8_000) {
             lastA11yScan = now
             RecipeAccessibilityService.instance?.scanNow()
@@ -253,7 +260,12 @@ class MonitorService : Service() {
         exempt = RecipeDetector.exemptReason(this, prefs, fg, now)
 
         val penalty = if (prefs.penaltyUntil > now) prefs.penaltyLevel else 0
-        val newLevel = if (exempt != null) 0 else Escalation.level(prefs, sessionActiveMs, dailyActiveMs, penalty)
+        val onYouTube = exempt == null && YouTubeLimit.isYouTube(fg)
+        val ytLevel = if (onYouTube) YouTubeLimit.level(prefs, youtubeMs) else 0
+        val newLevel = if (exempt != null) 0 else {
+            maxOf(Escalation.level(prefs, sessionActiveMs, dailyActiveMs, penalty), ytLevel)
+                .coerceAtMost(maxOf(prefs.maxLevel.coerceIn(1, 3), minOf(ytLevel, 3)))
+        }
         val levelChanged = newLevel != level
         level = newLevel
         if (level > prefs.maxLevelToday) prefs.maxLevelToday = level
@@ -280,13 +292,46 @@ class MonitorService : Service() {
             alert("Limit erreicht", "${prefs.sessionLimitMin} min am Stück. Ab jetzt wird's hässlich. 🤢")
         }
 
+        if (onYouTube) checkYouTube(now)
+
         publishSnapshot(now, fg)
         if (now - lastPersist > 30_000) persist()
         updateNotification(force = levelChanged)
     }
 
+    private fun checkYouTube(now: Long) {
+        if (!YouTubeLimit.enabled(prefs)) return
+        val limit = YouTubeLimit.limitMs(prefs)
+        if (prefs.youtubeWarned < 1 && youtubeMs >= limit - 5 * 60_000L && youtubeMs < limit) {
+            prefs.youtubeWarned = 1
+            alert("Noch 5 min YouTube ⏳", "Du hast heute schon ${fmtDuration(youtubeMs)} von ${prefs.youtubeLimitMin} min verbraucht.")
+        }
+        if (youtubeMs < limit) return
+        if (prefs.youtubeWarned < 2) {
+            prefs.youtubeWarned = 2
+            alert("YouTube-Limit erreicht 📺🚫", "${prefs.youtubeLimitMin} min YouTube für heute sind aufgebraucht.")
+        }
+        if (prefs.youtubeKick && now - lastKick > 4_000) {
+            lastKick = now
+            persist()
+            Toast.makeText(this, "YouTube-Limit (${prefs.youtubeLimitMin} min) erreicht. Tschüss! 👋", Toast.LENGTH_SHORT).show()
+            YouTubeLimit.kick(this)
+        }
+    }
+
+    private fun resetDaily() {
+        dailyActiveMs = 0L
+        youtubeMs = 0L
+    }
+
     private fun overlayLines(now: Long, penalty: Int): List<String> {
         val l = ArrayList<String>()
+        if (YouTubeLimit.isYouTube(lastFg) && YouTubeLimit.isOver(prefs, youtubeMs)) {
+            l += "YouTube-Limit überschritten!"
+            l += "YouTube heute: ${fmtDuration(youtubeMs)} / ${prefs.youtubeLimitMin} min"
+            l += "Session: ${fmtClock(sessionActiveMs)}"
+            return l
+        }
         l += UglyView.INSULTS[insultIdx]
         l += "Session: ${fmtClock(sessionActiveMs)}"
         l += "Heute: ${fmtDuration(dailyActiveMs)} · ${prefs.checksToday} Checks"
@@ -295,7 +340,7 @@ class MonitorService : Service() {
     }
 
     private fun publishSnapshot(now: Long, fg: String?) {
-        snapshot = Snapshot(level, fg, exempt, sessionActiveMs, dailyActiveMs, prefs.penaltyUntil, now)
+        snapshot = Snapshot(level, fg, exempt, sessionActiveMs, dailyActiveMs, prefs.penaltyUntil, youtubeMs, now)
     }
 
     private fun persist() {
@@ -303,6 +348,7 @@ class MonitorService : Service() {
         prefs.sessionActiveMs = sessionActiveMs
         prefs.dailyActiveMs = dailyActiveMs
         prefs.screenActiveMs = screenActiveMs
+        prefs.youtubeMsToday = youtubeMs
     }
 
     // ------------------------------------------------------------------ Benachrichtigungen
@@ -395,6 +441,8 @@ class MonitorService : Service() {
             p.dayKey = key
             p.dailyActiveMs = 0L
             p.checksToday = 0
+            p.youtubeMsToday = 0L
+            p.youtubeWarned = 0
             p.cookingUsed = 0
             p.maxLevelToday = 0
             return true

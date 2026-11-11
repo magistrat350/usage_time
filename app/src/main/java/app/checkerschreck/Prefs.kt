@@ -46,6 +46,12 @@ class Prefs(context: Context) {
     var unlockNudge by BoolPref(s, "unlock_nudge", true)
     var recipeContentDetection by BoolPref(s, "recipe_content_detection", true)
 
+    /** YouTube-Tageslimit in Minuten (0 = aus). */
+    var youtubeLimitMin by IntPref(s, "youtube_limit_min", 20)
+
+    /** Nach Überschreiten des YouTube-Limits zurück auf den Startbildschirm werfen. */
+    var youtubeKick by BoolPref(s, "youtube_kick", true)
+
     var cookingMinutes by IntPref(s, "cooking_minutes", 45)
     var cookingPerDay by IntPref(s, "cooking_per_day", 2)
 
@@ -59,6 +65,10 @@ class Prefs(context: Context) {
     var dayKey by StringPref(st, "day_key", "")
     var dailyActiveMs by LongPref(st, "daily_active_ms", 0L)
     var checksToday by IntPref(st, "checks_today", 0)
+    var youtubeMsToday by LongPref(st, "youtube_ms_today", 0L)
+
+    /** 0 = noch nicht gewarnt, 1 = "noch 5 min" gemeldet, 2 = Limit gemeldet. */
+    var youtubeWarned by IntPref(st, "youtube_warned", 0)
     var sessionActiveMs by LongPref(st, "session_active_ms", 0L)
     var sessionStart by LongPref(st, "session_start", 0L)
     var unlockedAt by LongPref(st, "unlocked_at", 0L)
