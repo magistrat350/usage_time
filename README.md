@@ -35,7 +35,10 @@ wechseln bewusst langsam und weich, ohne Stroboskop-Flackern.
 2. Installieren und die Installation aus dieser Quelle erlauben.
 3. App öffnen und die Berechtigungen erteilen:
    - **Nutzungszugriff** (Pflicht)
-   - **Über anderen Apps einblenden** (Pflicht)
+   - **Über anderen Apps einblenden** (Pflicht). Meldet Android „App was denied access“ /
+     „Eingeschränkte Einstellung“: *Einstellungen → Apps → Checker-Schreck → ⋮ (oben rechts) →
+     „Eingeschränkte Einstellungen zulassen“*, bestätigen, dann die Berechtigung nochmal erteilen.
+     Das ⋮-Menü erscheint erst, nachdem man einmal versucht hat, die Berechtigung zu erteilen.
    - Benachrichtigungen, Akku-Optimierung aus (empfohlen)
    - **Rezept-Erkennung** (optional, Bedienungshilfe). Ist der Schalter ausgegraut (Android 13+):
      *App-Info → ⋮ → „Eingeschränkte Einstellungen zulassen“*, danach geht es.

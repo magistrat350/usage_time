@@ -236,8 +236,12 @@ class MainActivity : AppCompatActivity() {
             Permissions.hasUsageAccess(this),
         ) { startActivity(Permissions.usageAccessIntent()) }
         permRow(
-            "Über anderen Apps einblenden", "Pflicht: damit das Handy hässlich werden kann.",
+            "Über anderen Apps einblenden",
+            "Pflicht: damit das Handy hässlich werden kann. Kommt „App was denied access“ bzw. " +
+                "„Eingeschränkte Einstellung“: App-Info → ⋮ (oben rechts) → „Eingeschränkte Einstellungen " +
+                "zulassen“, dann hier nochmal erlauben.",
             Permissions.canDrawOverlays(this),
+            secondary = "App-Info" to { startActivity(Permissions.appDetailsIntent(this)) },
         ) { startActivity(Permissions.overlayIntent(this)) }
         permRow(
             "Benachrichtigungen", "Für Check-Alarme und den Kochmodus-Knopf.",
