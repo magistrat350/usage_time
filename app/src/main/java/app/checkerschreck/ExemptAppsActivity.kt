@@ -58,14 +58,14 @@ class ExemptAppsActivity : AppCompatActivity() {
                 .map { AppEntry(it, Analyzer.appLabel(this, it), RecipeDetector.isAutoRecipeApp(this, it)) }
             runOnUiThread {
                 apps = loaded.sortedWith(
-                    compareByDescending<AppEntry> { isChecked(it) }.thenBy { it.label.lowercase(Locale.GERMAN) },
+                    compareByDescending<AppEntry> { isExempt(it) }.thenBy { it.label.lowercase(Locale.GERMAN) },
                 )
                 render()
             }
         }.start()
     }
 
-    private fun isChecked(a: AppEntry) =
+    private fun isExempt(a: AppEntry) =
         a.pkg in p.extraExempt || (a.auto && a.pkg !in p.autoRecipeDisabled)
 
     private fun render() {
@@ -74,7 +74,7 @@ class ExemptAppsActivity : AppCompatActivity() {
             if (filter.isNotEmpty() && !a.label.lowercase(Locale.GERMAN).contains(filter)) continue
             val cb = MaterialCheckBox(this).apply {
                 text = if (a.auto) "${a.label}  🥕 automatisch als Rezept-App erkannt" else a.label
-                isChecked = isChecked(a)
+                isChecked = isExempt(a)
                 setOnCheckedChangeListener { _, checked -> toggle(a, checked) }
             }
             list.addView(cb, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
