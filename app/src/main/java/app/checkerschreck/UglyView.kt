@@ -39,7 +39,7 @@ class UglyView(context: Context) : View(context) {
     private val ticker = object : Runnable {
         override fun run() {
             invalidate()
-            postDelayed(this, if (level >= 2) 66L else 200L)
+            postDelayed(this, if (level >= 2) 66L else 400L)
         }
     }
 
@@ -128,14 +128,14 @@ class UglyView(context: Context) : View(context) {
     private fun drawText(c: Canvas, t: Float, w: Float, h: Float) {
         if (lines.isEmpty()) return
         val base = when (level) {
-            1 -> 22f
+            1 -> 15f
             2 -> 30f
             else -> 40f
         } * density
         val wobble = if (level >= 2) sin(t * 3f) * 8f else 0f
         c.save()
         c.rotate(wobble, w / 2, h / 2)
-        var y = h / 2 - (lines.size - 1) * base * 0.75f
+        var y = if (level == 1) h * 0.10f + base else h / 2 - (lines.size - 1) * base * 0.75f
         lines.forEachIndexed { i, line ->
             val size = if (i == 0) base * 1.25f else base * 0.7f
             text.textSize = size

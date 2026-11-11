@@ -289,7 +289,8 @@ class MonitorService : Service() {
             sessionActiveMs >= prefs.sessionLimitMin * 60_000L
         ) {
             limitNotifiedSession = prefs.sessionStart
-            alert("Limit erreicht", "${prefs.sessionLimitMin} min am Stück. Ab jetzt wird's hässlich. 🤢")
+            val msg = if (prefs.alwaysUgly) "Ab jetzt wird's noch hässlicher." else "Ab jetzt wird's hässlich."
+            alert("Limit erreicht", "${prefs.sessionLimitMin} min am Stück. $msg 🤢")
         }
 
         if (onYouTube) checkYouTube(now)
@@ -330,6 +331,13 @@ class MonitorService : Service() {
             l += "YouTube-Limit überschritten!"
             l += "YouTube heute: ${fmtDuration(youtubeMs)} / ${prefs.youtubeLimitMin} min"
             l += "Session: ${fmtClock(sessionActiveMs)}"
+            return l
+        }
+        if (level == 1 && penalty == 0) {
+            // Grundstufe: kurz und oben, damit man noch lesen kann
+            val next = Escalation.minutesToNextLevel(prefs, sessionActiveMs)
+            l += "Session ${fmtClock(sessionActiveMs)} · Stufe 2 in $next min"
+            l += "${prefs.checksToday} Checks heute"
             return l
         }
         l += UglyView.INSULTS[insultIdx]

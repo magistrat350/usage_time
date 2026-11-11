@@ -10,9 +10,9 @@ Rezept offen, dann hat sie Verständnis. 🍳
 |---|---|
 | **Checks zählen** | Jedes Entsperren ist ein Check. Beim Entsperren kommt kurz „Check #23 heute · letzter vor 4 min“. |
 | **Session messen** | Zeit am Stück. Kurz Bildschirm aus und wieder an zählt **nicht** als Pause (Standard: erst nach 2 min aus). |
-| **Hässlich machen** | Ab dem Limit (Standard 10 min) legt sich ein Overlay über alles. Alle 5 min wird es eine Stufe schlimmer. |
-| **Tageslimit** | Nach 120 min am Tag ist jede Nutzung sofort hässlich. |
-| **Check-Attacken** | 5 Checks in 15 min → Alarm und 10 min Strafe (sofort hässlich). Doppelt so viele → Stufe 2. |
+| **Hässlich machen** | Grundstufe 1: Bei jeder Nutzung liegt ein Matsch-Overlay über allem. Nach 10 min am Stück Stufe 2, nach 15 min Stufe 3 (einstellbar). Ohne Grundstufe sieht das Handy bis zum Limit normal aus. |
+| **Tageslimit** | Nach 120 min am Tag ist jede Nutzung sofort eine Stufe hässlicher. |
+| **Check-Attacken** | 5 Checks in 15 min → Alarm und 10 min Strafe (eine Stufe hässlicher). Doppelt so viele → zwei Stufen. |
 | **Analyse** | Checks heute, Reflex-Checks (< 60 s), Ø Abstand, längste Pause, Checks pro Stunde (Diagramm), Hotspot-Stunde, Vergleich mit den letzten 7 Tagen, Top-Apps, Urteil („Notorischer Checker“, „Goldfisch mit WLAN“ …). |
 | **Rezept-Ausnahme** | Rezept-Apps werden am Namen erkannt (Chefkoch, Kitchen Stories, Cookidoo …). Die optionale Bedienungshilfe erkennt Rezepte auch im Browser (Wörter wie „Zutaten“, „Zubereitung“, „Portionen“). Zusätzlich gibt es den Kochmodus (Standard: 2× am Tag je 45 min). |
 | **YouTube-Limit** | 20 min YouTube pro Tag (einstellbar, 0 = aus). 5 min vorher kommt eine Warnung. Danach ist YouTube sofort Stufe 2 (alle 5 min eine Stufe mehr) und die App wirft dich standardmäßig zurück auf den Startbildschirm. Gilt für die YouTube-App (auch Kids/ReVanced), nicht für YouTube im Browser. |
@@ -20,7 +20,7 @@ Rezept offen, dann hat sie Verständnis. 🍳
 
 ### Die Hässlich-Stufen
 
-1. **Matsch**: braun-grüne, pulsierende Tönung mit Streifen und dem Session-Timer.
+1. **Matsch** (Grundstufe, immer an): braun-grüne, pulsierende Tönung mit Streifen, oben ein kleiner Session-Timer.
 2. **Kotz-Regenbogen**: wechselnde Farben, dicke Streifen, wackelnder Text. Mit adb-Freigabe wird zusätzlich das **ganze Handy grau**.
 3. **Chaos**: Schachbrett in Pink, Giftgrün und Braun, gelbe Streifen, Flecken, Nerv-Vibration. Optional werden die Farben invertiert.
 

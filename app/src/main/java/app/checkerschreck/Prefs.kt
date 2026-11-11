@@ -40,6 +40,9 @@ class Prefs(context: Context) {
     var shortCheckSec by IntPref(s, "short_check_sec", 60)
 
     var maxLevel by IntPref(s, "max_level", 3)
+
+    /** Grundstufe 1: Das Handy ist bei jeder Nutzung mindestens Stufe 1 hässlich. */
+    var alwaysUgly by BoolPref(s, "always_ugly", true)
     var useGrayscale by BoolPref(s, "use_grayscale", true)
     var useInversion by BoolPref(s, "use_inversion", false)
     var vibrate by BoolPref(s, "vibrate", true)

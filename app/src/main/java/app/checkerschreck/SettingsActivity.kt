@@ -16,7 +16,13 @@ class SettingsActivity : AppCompatActivity() {
         col.text("Einstellungen", 28f, bold = true)
 
         val limits = col.card("Limits")
-        slider(limits, "Hässlich ab (am Stück)", "min", 1, 60, { p.sessionLimitMin }) { p.sessionLimitMin = it }
+        switch(limits, "Grundstufe 1: Handy ist immer hässlich", { p.alwaysUgly }) { p.alwaysUgly = it }
+        limits.text(
+            "An: Jede Nutzung ist Stufe 1, nach dem Limit Stufe 2, dann Stufe 3. " +
+                "Aus: Bis zum Limit sieht das Handy normal aus.",
+            12f, topDp = 2, alpha = 0.7f,
+        )
+        slider(limits, "Nächste Stufe ab (am Stück)", "min", 1, 60, { p.sessionLimitMin }) { p.sessionLimitMin = it }
         slider(limits, "Eine Stufe hässlicher alle", "min", 1, 30, { p.escalationStepMin }) { p.escalationStepMin = it }
         slider(limits, "Tageslimit (danach sofort hässlich)", "min", 15, 480, { p.dailyLimitMin }, step = 15) {
             p.dailyLimitMin = it

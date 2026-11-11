@@ -178,8 +178,9 @@ class MainActivity : AppCompatActivity() {
             val parts = ArrayList<String>()
             if (s != null) {
                 parts += "Session: ${fmtClock(s.sessionMs)} (Limit ${prefs.sessionLimitMin} min)"
-                if (s.exempt == null && s.level == 0) {
-                    parts += "Noch ${Escalation.minutesToNextLevel(prefs, s.sessionMs)} min bis es hässlich wird"
+                if (s.exempt == null && s.sessionMs < prefs.sessionLimitMin * 60_000L) {
+                    val next = Escalation.base(prefs) + 1
+                    parts += "Noch ${Escalation.minutesToNextLevel(prefs, s.sessionMs)} min bis Stufe $next"
                 }
                 parts += "Heute aktiv: ${fmtDuration(s.dailyMs)} von ${prefs.dailyLimitMin} min"
                 if (YouTubeLimit.enabled(prefs)) {
