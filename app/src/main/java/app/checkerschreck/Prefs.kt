@@ -90,6 +90,7 @@ class Prefs(context: Context) {
     var uglyFont by BoolPref(s, "ugly_font", true)
     var uglyAnimations by BoolPref(s, "ugly_animations", true)
     var shrinkScreen by BoolPref(s, "shrink_screen", true)
+    var stickers by BoolPref(s, "stickers", true)
 
     var weeklyReport by BoolPref(s, "weekly_report", true)
 
@@ -137,6 +138,7 @@ class Prefs(context: Context) {
     var lastAliveAt by LongPref(st, "last_alive_at", 0L)
     var backchargedToday by LongPref(st, "backcharged_today", 0L)
     var permAlertDay by StringPref(st, "perm_alert_day", "")
+    var serviceStartsToday by IntPref(st, "service_starts_today", 0)
 
     // Zeitfenster
     var morningBlockDay by StringPref(st, "morning_block_day", "")

@@ -97,6 +97,8 @@ class SettingsActivity : AppCompatActivity() {
         val ugly = col.card("Hässlichkeit")
         switch(ugly, Rules.SHRINK)
         note(ugly, "Schwarze Balken an allen Rändern, die pro Minute wachsen (bis 12 % oben und unten). Sie schlucken Berührungen.")
+        switch(ugly, Rules.STICKERS)
+        note(ugly, "Drei (Stufe 2) bzw. sechs (Stufe 3) Flecken, die alle 9 Sekunden woanders kleben und Berührungen schlucken.")
         switch(ugly, Rules.UGLY_FONT)
         note(ugly, "Braucht „Systemeinstellungen ändern“ (auf dem Hauptbildschirm erlauben, ohne PC).")
         switch(ugly, Rules.UGLY_ANIM)

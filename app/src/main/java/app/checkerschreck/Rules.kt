@@ -113,6 +113,8 @@ object Rules {
         { it.uglyAnimations }, { p, v -> p.uglyAnimations = v })
     val SHRINK = BoolSetting("shrink", "Schrumpfender Bildschirm ab Stufe 2", false,
         { it.shrinkScreen }, { p, v -> p.shrinkScreen = v })
+    val STICKERS = BoolSetting("stickers", "Kleckse ab Stufe 2", false,
+        { it.stickers }, { p, v -> p.stickers = v })
     val RECIPE_CONTENT = BoolSetting("recipe_content", "Rezepte auf dem Bildschirm erkennen (Bedienungshilfe)", null,
         { it.recipeContentDetection }, { p, v -> p.recipeContentDetection = v })
     val NIGHT = BoolSetting("night", "Nachtmodus: sofort Stufe 3 und Graustufen", false,
@@ -134,6 +136,6 @@ object Rules {
 
     val bools: Map<String, BoolSetting> = listOf(
         ALWAYS_UGLY, ADAPTIVE, YOUTUBE_KICK, UNLOCK_NUDGE, GRAYSCALE, INVERSION, VIBRATE, UGLY_FONT, UGLY_ANIM,
-        SHRINK, RECIPE_CONTENT, NIGHT, MORNING, DAY_STRICT, DOOMSCROLL, WEEKLY_REPORT,
+        SHRINK, STICKERS, RECIPE_CONTENT, NIGHT, MORNING, DAY_STRICT, DOOMSCROLL, WEEKLY_REPORT,
     ).associateBy { it.id }
 }

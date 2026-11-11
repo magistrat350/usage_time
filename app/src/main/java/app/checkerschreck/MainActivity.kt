@@ -38,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cookBtn: MaterialButton
     private lateinit var weaning: TextView
     private lateinit var triggers: TextView
+    private lateinit var diagnosis: TextView
     private lateinit var pendingCard: LinearLayout
     private lateinit var liftBtn: MaterialButton
     private lateinit var updateBtn: MaterialButton
@@ -97,6 +98,9 @@ class MainActivity : AppCompatActivity() {
 
         val apps = col.card("Top-Apps heute")
         topApps = apps.text("", 14f, topDp = 4)
+
+        val diag = col.card("Diagnose")
+        diagnosis = diag.text("", 13f, topDp = 4)
 
         val actions = col.card("Aktionen")
         cookBtn = actions.button("🍳 Kochmodus") {
@@ -333,6 +337,7 @@ class MainActivity : AppCompatActivity() {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         }
         prefs.monitoringEnabled = true
+        Watchdog.schedule(this)
         MonitorService.start(this)
         handler.postDelayed({ refreshStatus(); refreshStats() }, 500)
     }
@@ -394,6 +399,7 @@ class MainActivity : AppCompatActivity() {
         }
         liftBtn.visibility =
             if (Schedule.morningBlocked(prefs, now)) android.view.View.VISIBLE else android.view.View.GONE
+        refreshDiagnosis(snap, now)
         val cooking = prefs.cookingUntil > now
         cookBtn.text = if (cooking) {
             "🍳 Kochmodus läuft (${fmtDuration(prefs.cookingUntil - now)})"
@@ -428,6 +434,34 @@ class MainActivity : AppCompatActivity() {
         } else {
             top.mapIndexed { i, (name, ms) -> "${i + 1}. $name – ${fmtDuration(ms)}" }.joinToString("\n")
         }
+    }
+
+    /** Zeigt, was die Überwachung gerade sieht und warum welche Stufe gilt. */
+    private fun refreshDiagnosis(s: MonitorService.Snapshot?, now: Long) {
+        val l = ArrayList<String>()
+        if (!MonitorService.running) {
+            l += "Dienst: läuft nicht"
+        } else {
+            val age = if (s == null) "noch kein Takt" else "letzter Takt vor ${(now - s.updatedAt) / 1000} s"
+            l += "Dienst: läuft ($age)"
+        }
+        val starts = prefs.serviceStartsToday
+        l += "Heute ${starts}× gestartet" + if (starts > 3) {
+            " ⚠️ Android beendet die App immer wieder. Akku-Optimierung ausschalten, Autostart erlauben " +
+                "und die App in der Übersicht anpinnen (Schloss-Symbol)."
+        } else ""
+        if (s != null) {
+            l += "Vordergrund-App: " + (s.foreground?.let { Analyzer.appLabel(this, it) } ?: "unbekannt")
+            l += "Stufe ${s.level}: ${s.reason}"
+            if (s.error.isNotEmpty()) l += "Letzter Fehler: ${s.error}"
+        }
+        fun mark(ok: Boolean) = if (ok) "an" else "aus"
+        l += "Bedienungshilfe (Rezept, Doomscroll, schneller App-Wechsel): " +
+            mark(RecipeAccessibilityService.instance != null)
+        l += "Benachrichtigungszugriff (Auslöser): " + mark(NotificationTriggers.connected)
+        l += "Riesenschrift: " + mark(Permissions.canWriteSettings(this)) +
+            " · Graustufen/Animationen: " + mark(Permissions.hasSecureSettings(this))
+        diagnosis.text = l.joinToString("\n")
     }
 
     private fun refreshTriggers(now: Long) {

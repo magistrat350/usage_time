@@ -58,6 +58,7 @@ object NotificationTriggers {
 class NotificationWatcher : NotificationListenerService() {
     override fun onListenerConnected() {
         NotificationTriggers.connected = true
+        Watchdog.ensureRunning(this)
     }
 
     override fun onListenerDisconnected() {
@@ -65,6 +66,7 @@ class NotificationWatcher : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?, rankingMap: RankingMap?) {
+        Watchdog.ensureRunning(this)
         if (sbn == null || sbn.packageName == packageName || sbn.isOngoing) return
         if (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
         // Nur Benachrichtigungen, die sich bemerkbar machen (nicht stumm, nicht von "Nicht stören" geschluckt)

@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -38,6 +39,8 @@ class MonitorService : Service() {
         val dayStrict: Boolean,
         val doomscroll: Boolean,
         val morningBlockUntil: Long,
+        val reason: String,
+        val error: String,
         val updatedAt: Long,
     )
 
@@ -64,6 +67,11 @@ class MonitorService : Service() {
     private var doom = false
     private var blocked = false
     private var lastMinuteJobs = 0L
+    private var lastUsable = false
+    private var lastPoke = 0L
+    private var lastError = ""
+    private var audio: AudioManager? = null
+    private lateinit var stickers: UglyStickers
 
     private var ticking = false
     private var lastTick = 0L
@@ -81,7 +89,7 @@ class MonitorService : Service() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 Intent.ACTION_SCREEN_ON -> onScreenOn()
-                Intent.ACTION_USER_PRESENT -> registerCheck(System.currentTimeMillis())
+                Intent.ACTION_USER_PRESENT -> onScreenOn()
                 Intent.ACTION_SCREEN_OFF -> onScreenOff()
             }
         }
@@ -103,6 +111,8 @@ class MonitorService : Service() {
         overlay = UglyOverlay(this)
         shrink = ShrinkBars(this)
         blocker = BlockerOverlay(this)
+        stickers = UglyStickers(this)
+        audio = getSystemService(AudioManager::class.java)
         pm = getSystemService(PowerManager::class.java)
         km = getSystemService(KeyguardManager::class.java)
         val now = System.currentTimeMillis()
@@ -116,6 +126,9 @@ class MonitorService : Service() {
         backcharge(now)
         prefs.serviceAlive = true
         prefs.lastAliveAt = now
+        prefs.serviceStartsToday = prefs.serviceStartsToday + 1
+        instance = this
+        Watchdog.schedule(this)
         if (prefs.morningBlockDay.isEmpty()) prefs.morningBlockDay = Analyzer.dayKey(now)
         UsageLog.prune(this, now)
         // Aufräumen, falls der Dienst mitten in einer Session beendet wurde
@@ -134,10 +147,13 @@ class MonitorService : Service() {
         ContextCompat.registerReceiver(this, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         running = true
         announceAdaptive()
-        if (pm.isInteractive) {
-            if (!km.isKeyguardLocked && prefs.unlockedAt == 0L) registerCheck(now)
-            startTicking()
-        }
+        if (pm.isInteractive) startTicking()
+    }
+
+    /** App aus der Übersicht gewischt: Manche Hersteller beenden dann den Dienst. Gleich wieder starten. */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        Watchdog.kickSoon(this)
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -160,10 +176,12 @@ class MonitorService : Service() {
         ticking = false
         handler.removeCallbacksAndMessages(null)
         runCatching { unregisterReceiver(receiver) }
-        hideEverything()
+        hideWindows()
+        restoreSystem(keepFont = false)
         persist()
         prefs.serviceAlive = false
         running = false
+        instance = null
         snapshot = null
         WidgetProvider.render(this)
         super.onDestroy()
@@ -172,14 +190,14 @@ class MonitorService : Service() {
     // ------------------------------------------------------------------ Bildschirm-Ereignisse
 
     private fun onScreenOn() {
-        // Ohne Sperrbildschirm kommt kein USER_PRESENT, dann zählt schon das Einschalten.
-        if (!km.isKeyguardLocked) registerCheck(System.currentTimeMillis())
         startTicking()
+        tickNow()
     }
 
     private fun onScreenOff() {
         val now = System.currentTimeMillis()
         tickAccounting(now) // letzte Sekunden noch mitzählen
+        lastUsable = false
         if (prefs.unlockedAt > 0) {
             UsageLog.addSession(this, Session(prefs.unlockedAt, now, screenActiveMs))
         }
@@ -188,14 +206,26 @@ class MonitorService : Service() {
         prefs.lastScreenOff = now
         ticking = false
         handler.removeCallbacks(tickRunnable)
-        hideEverything()
+        // Fenster weg (spart Akku). Die Schrift bleibt, damit nicht bei jedem Sperren alle Apps neu laden.
+        hideWindows()
+        restoreSystem(keepFont = true)
         level = 0
         persist()
         updateNotification(force = true)
     }
 
+    private fun inCall(): Boolean {
+        val mode = audio?.mode ?: return false
+        return mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION ||
+            mode == AudioManager.MODE_RINGTONE
+    }
+
+    /**
+     * Das Handy wurde entsperrt. Wird aus dem Takt aufgerufen, sobald der Bildschirm an und
+     * entsperrt ist und für diese Bildschirm-an-Phase noch kein Entsperren vermerkt wurde.
+     * So hängt nichts davon ab, ob Android das Entsperr-Signal zustellt.
+     */
     private fun registerCheck(now: Long) {
-        if (now - prefs.lastCheckAt < 3000) return
         rollover(now)
         // Session nur zurücksetzen, wenn der Bildschirm lange genug aus war (kein Schummeln
         // durch kurzes Aus- und Einschalten).
@@ -204,10 +234,12 @@ class MonitorService : Service() {
             sessionActiveMs = 0L
             prefs.sessionStart = now
         }
-        if (prefs.unlockedAt == 0L) {
-            prefs.unlockedAt = now
-            screenActiveMs = 0L
-        }
+        prefs.unlockedAt = now
+        screenActiveMs = 0L
+
+        // Kein Check: Bildschirm ging nur ganz kurz aus, oder der Annäherungssensor beim Telefonieren
+        if (now - prefs.lastCheckAt < 3000 || inCall()) return
+
         val previous = prefs.lastCheckAt
         prefs.lastCheckAt = now
         prefs.checksToday = prefs.checksToday + 1
@@ -249,7 +281,7 @@ class MonitorService : Service() {
             }
             Toast.makeText(this, "Check #${prefs.checksToday}$of heute$since$why", Toast.LENGTH_SHORT).show()
         }
-        updateNotification(force = true)
+        lastNotif = 0L
     }
 
     // ------------------------------------------------------------------ Takt
@@ -261,106 +293,158 @@ class MonitorService : Service() {
         handler.post(tickRunnable)
     }
 
-    /** Rechnet die seit dem letzten Takt vergangene Zeit an. Gibt true zurück, wenn gezählt wurde. */
-    private fun tickAccounting(now: Long): Boolean {
-        val dt = (now - lastTick).coerceIn(0, 5_000)
+    /** Sofort einen Takt ausführen (nach Entsperren, App-Wechsel ...), statt auf den nächsten zu warten. */
+    private fun tickNow() {
+        if (!ticking) return
+        handler.removeCallbacks(tickRunnable)
+        handler.post(tickRunnable)
+    }
+
+    private fun pokeTick() {
+        val now = System.currentTimeMillis()
+        if (now - lastPoke < 400) return
+        lastPoke = now
+        handler.postDelayed({ tickNow() }, 150)
+    }
+
+    /** Rechnet die seit dem letzten Takt vergangene Zeit an, wenn das Handy da in Benutzung war. */
+    private fun tickAccounting(now: Long) {
+        val dt = (now - lastTick).coerceIn(0, 20_000)
         lastTick = now
-        if (!pm.isInteractive || km.isKeyguardLocked || prefs.unlockedAt == 0L) return false
-        if (exempt != null || blocked) return false
+        if (!lastUsable || exempt != null || blocked) return
         // Beim Endlos-Scrollen läuft die Session-Uhr schneller
         sessionActiveMs += dt * (if (doom) prefs.doomscrollFactor.coerceIn(1, 5) else 1)
         if (ScrollMeter.scrolledWithin(now, 3_000)) scrollMs += dt
         dailyActiveMs += dt
         screenActiveMs += dt
         if (YouTubeLimit.isYouTube(lastFg)) youtubeMs += dt
-        return true
     }
 
+    /** Ein Fehler in einem Takt darf die Überwachung nicht beenden. */
     private fun tick() {
+        try {
+            tickInner()
+        } catch (t: Throwable) {
+            lastError = "${t.javaClass.simpleName}: ${t.message}"
+        }
+    }
+
+    private fun tickInner() {
         val now = System.currentTimeMillis()
         rollover(now)
         tickAccounting(now)
         if (now - lastMinuteJobs > 60_000) minuteJobs(now)
 
-        val usable = pm.isInteractive && !km.isKeyguardLocked
-        if (!usable) {
-            hideEverything()
+        if (!pm.isInteractive) {
+            lastUsable = false
+            hideWindows()
+            restoreSystem(keepFont = true)
             level = 0
-            publishSnapshot(now, null)
+            publishSnapshot(now, null, "Bildschirm aus")
             return
         }
+        // Solange der Sperrbildschirm zu sehen ist, wird schon alles so vorbereitet, wie es nach dem
+        // Entsperren sein muss. Android blendet die Fenster hinter dem Sperrbildschirm aus, nach dem
+        // Entsperren sind sie ohne Verzögerung da.
+        val locked = km.isKeyguardLocked
+        if (!locked && prefs.unlockedAt == 0L) registerCheck(now)
+        lastUsable = !locked
 
         val fg = if (Permissions.hasUsageAccess(this)) tracker.update(now) else null
         lastFg = fg
-        if (now - lastA11yScan > 8_000) {
+        if (!locked && now - lastA11yScan > 8_000) {
             lastA11yScan = now
             RecipeAccessibilityService.instance?.scanNow()
         }
-        exempt = RecipeDetector.exemptReason(this, prefs, fg, now)
+        exempt = if (inCall()) "Telefonat" else RecipeDetector.exemptReason(this, prefs, fg, now)
 
         val sched = Schedule.state(prefs, now)
         night = sched.night
         dayStrict = sched.dayStrict && !sched.night
-        doom = exempt == null && prefs.doomscrollEnabled && ScrollMeter.isDoomscrolling(now)
+        doom = !locked && exempt == null && prefs.doomscrollEnabled && ScrollMeter.isDoomscrolling(now)
         val factor = limitFactor()
 
         // Morgensperre: Vollbild, außer in Ausnahme-Apps
-        blocked = exempt == null && Schedule.morningBlocked(prefs, now)
+        blocked = !locked && exempt == null && Schedule.morningBlocked(prefs, now)
         if (blocked) {
             blocker.show("Das Handy ist noch ${fmtDuration(prefs.morningBlockUntil - now + 59_000)} gesperrt.")
         } else {
             blocker.hide()
         }
 
+        // Hinter dem Sperrbildschirm: Wird die Session beim Entsperren zurückgesetzt?
+        val off = prefs.lastScreenOff
+        val willReset = locked && prefs.unlockedAt == 0L && (off == 0L || now - off > prefs.resetPauseSec * 1000L)
+        val session = if (willReset) 0L else sessionActiveMs
+
         val penalty = if (prefs.penaltyUntil > now) prefs.penaltyLevel else 0
+        val checkLevel = Escalation.checkLevel(prefs, prefs.checksToday)
         val onYouTube = exempt == null && YouTubeLimit.isYouTube(fg)
         val ytLevel = if (onYouTube) YouTubeLimit.level(prefs, youtubeMs) else 0
         val newLevel = when {
             exempt != null -> 0
             night -> 3 // Nachtmodus: sofort die höchste Stufe
-            else -> {
-                val checkLevel = Escalation.checkLevel(prefs, prefs.checksToday)
-                maxOf(Escalation.level(prefs, sessionActiveMs, dailyActiveMs, penalty, checkLevel, factor), ytLevel)
-                    .coerceAtMost(maxOf(prefs.maxLevel.coerceIn(1, 3), minOf(ytLevel, 3)))
-            }
+            else -> maxOf(Escalation.level(prefs, session, dailyActiveMs, penalty, checkLevel, factor), ytLevel)
+                .coerceAtMost(maxOf(prefs.maxLevel.coerceIn(1, 3), minOf(ytLevel, 3)))
         }
         val levelChanged = newLevel != level
         level = newLevel
         if (level > prefs.maxLevelToday) prefs.maxLevelToday = level
 
+        // Begründung, warum gerade diese Stufe gilt (für die Diagnose)
+        val why = ArrayList<String>()
+        if (exempt != null) {
+            why += "Ausnahme: $exempt"
+        } else {
+            if (night) why += "Nachtmodus"
+            if (session >= Escalation.sessionLimitMs(prefs, factor)) why += "Session über Limit"
+            if (dailyActiveMs >= prefs.dailyLimitMin * 60_000L) why += "Tageslimit überschritten"
+            if (penalty > 0) why += "Check-Strafe"
+            if (checkLevel > 0) why += "Check-Budget überzogen"
+            if (ytLevel > 0) why += "YouTube-Limit"
+            if (why.isEmpty()) why += if (prefs.alwaysUgly) "Grundstufe" else "unter allen Limits"
+            if (dayStrict) why += "tagsüber strenger"
+            if (doom) why += "Endlos-Scrollen"
+        }
+        if (blocked) why += "Morgensperre"
+        if (locked) why += "Sperrbildschirm"
+
         if (now - lastInsultSwap > 6_000) {
             lastInsultSwap = now
             insultIdx = (insultIdx + 1) % UglyView.INSULTS.size
         }
-        overlay.show(if (blocked) 0 else level, overlayLines(now, penalty))
+        overlay.show(if (blocked) 0 else level, overlayLines(now, penalty, session))
         SystemColorHack.apply(
             this, prefs,
             gray = (prefs.useGrayscale && level >= 2) || (night && exempt == null),
             invert = prefs.useInversion && level >= 3,
         )
         SystemTweaks.apply(this, prefs, level)
+        val ugly2 = level >= 2 && !blocked
         shrink.update(
-            if (prefs.shrinkScreen && level >= 2 && !blocked) {
-                ShrinkBars.fractionFor(sessionActiveMs - Escalation.sessionLimitMs(prefs, factor))
+            if (prefs.shrinkScreen && ugly2) {
+                ShrinkBars.fractionFor(session - Escalation.sessionLimitMs(prefs, factor))
             } else 0f,
         )
+        stickers.update(if (prefs.stickers && ugly2) (if (level >= 3) 6 else 3) else 0, now)
 
-        if (level >= 3 && prefs.vibrate && now - lastVibrate > 45_000) {
-            lastVibrate = now
-            nag()
+        if (!locked) {
+            if (level >= 3 && prefs.vibrate && now - lastVibrate > 45_000) {
+                lastVibrate = now
+                nag()
+            }
+            if (level >= 1 && limitNotifiedSession != prefs.sessionStart && penalty == 0 && !night &&
+                sessionActiveMs >= Escalation.sessionLimitMs(prefs, factor)
+            ) {
+                limitNotifiedSession = prefs.sessionStart
+                val msg = if (prefs.alwaysUgly) "Ab jetzt wird's noch hässlicher." else "Ab jetzt wird's hässlich."
+                val extra = if (doom) " (Endlos-Scrollen zählt doppelt)" else if (dayStrict) " (tagsüber strenger)" else ""
+                alert("Limit erreicht", "Session-Limit erreicht$extra. $msg 🤢")
+            }
+            if (onYouTube) checkYouTube(now)
         }
-        if (level >= 1 && limitNotifiedSession != prefs.sessionStart && penalty == 0 && !night &&
-            sessionActiveMs >= Escalation.sessionLimitMs(prefs, factor)
-        ) {
-            limitNotifiedSession = prefs.sessionStart
-            val msg = if (prefs.alwaysUgly) "Ab jetzt wird's noch hässlicher." else "Ab jetzt wird's hässlich."
-            val why = if (doom) " (Endlos-Scrollen zählt doppelt)" else if (dayStrict) " (tagsüber strenger)" else ""
-            alert("Limit erreicht", "Session-Limit erreicht$why. $msg 🤢")
-        }
 
-        if (onYouTube) checkYouTube(now)
-
-        publishSnapshot(now, fg)
+        publishSnapshot(now, fg, why.joinToString(", "))
         if (now - lastPersist > 30_000) persist()
         updateNotification(force = levelChanged)
     }
@@ -387,13 +471,17 @@ class MonitorService : Service() {
 
     private fun limitFactor() = if (dayStrict) prefs.dayStrictPct.coerceIn(10, 100) / 100.0 else 1.0
 
-    private fun hideEverything() {
+    private fun hideWindows() {
         overlay.hide()
         shrink.hide()
+        stickers.hide()
         blocker.hide()
         blocked = false
+    }
+
+    private fun restoreSystem(keepFont: Boolean) {
         SystemColorHack.restore(this, prefs)
-        SystemTweaks.restore(this, prefs)
+        SystemTweaks.restore(this, prefs, keepFont)
     }
 
     /** Einmal pro Minute: fällige Lockerungen, fehlende Berechtigungen, Wochenbericht. */
@@ -453,7 +541,7 @@ class MonitorService : Service() {
         getSystemService(NotificationManager::class.java).notify(ADAPTIVE_ID, n)
     }
 
-    private fun overlayLines(now: Long, penalty: Int): List<String> {
+    private fun overlayLines(now: Long, penalty: Int, session: Long): List<String> {
         val l = ArrayList<String>()
         if (YouTubeLimit.isYouTube(lastFg) && YouTubeLimit.isOver(prefs, youtubeMs)) {
             l += "YouTube-Limit überschritten!"
@@ -469,9 +557,9 @@ class MonitorService : Service() {
         }
         if (level == 1 && penalty == 0) {
             // Grundstufe: kurz und oben, damit man noch lesen kann
-            val next = Escalation.minutesToNextLevel(prefs, sessionActiveMs, limitFactor())
+            val next = Escalation.minutesToNextLevel(prefs, session, limitFactor())
             val fast = if (doom) " · 📜 Scrollen zählt ${prefs.doomscrollFactor}×" else ""
-            l += "Session ${fmtClock(sessionActiveMs)} · Stufe 2 in $next min$fast"
+            l += "Session ${fmtClock(session)} · Stufe 2 in $next min$fast"
             val budget = prefs.checkBudget
             l += if (budget > 0) "${prefs.checksToday} von $budget Checks heute" else "${prefs.checksToday} Checks heute"
             return l
@@ -484,10 +572,10 @@ class MonitorService : Service() {
         return l
     }
 
-    private fun publishSnapshot(now: Long, fg: String?) {
+    private fun publishSnapshot(now: Long, fg: String?, reason: String) {
         snapshot = Snapshot(
             level, fg, exempt, sessionActiveMs, dailyActiveMs, prefs.penaltyUntil, youtubeMs,
-            night, dayStrict, doom, if (blocked) prefs.morningBlockUntil else 0L, now,
+            night, dayStrict, doom, if (blocked) prefs.morningBlockUntil else 0L, reason, lastError, now,
         )
     }
 
@@ -567,7 +655,7 @@ class MonitorService : Service() {
     }
 
     companion object {
-        private const val TICK_MS = 2_000L
+        private const val TICK_MS = 1_000L
         private const val NOTIF_ID = 1
         private const val ALERT_ID = 2
         private const val ADAPTIVE_ID = 3
@@ -580,12 +668,20 @@ class MonitorService : Service() {
         @Volatile var snapshot: Snapshot? = null
             private set
 
+        @Volatile private var instance: MonitorService? = null
+
+        /** Von der Bedienungshilfe: Es hat sich ein Fenster geändert, bitte sofort neu bewerten. */
+        fun poke() {
+            instance?.pokeTick()
+        }
+
         fun start(ctx: Context) {
             ContextCompat.startForegroundService(ctx, Intent(ctx, MonitorService::class.java))
         }
 
         fun stop(ctx: Context) {
             Prefs(ctx).monitoringEnabled = false
+            Watchdog.cancel(ctx)
             ctx.stopService(Intent(ctx, MonitorService::class.java))
         }
 
@@ -611,6 +707,7 @@ class MonitorService : Service() {
             p.longestSessionToday = 0L
             p.scrollMsToday = 0L
             p.backchargedToday = 0L
+            p.serviceStartsToday = 0
             p.dayKey = key
             p.dailyActiveMs = 0L
             p.checksToday = 0

@@ -11,7 +11,28 @@ object RecipeDetector {
         "cookidoo", "thermomix", "backrezept", "eat smarter", "lecker", "mealime", "paprika",
     )
 
-    /** Wörter, die auf einer Rezeptseite stehen. Ab 2 verschiedenen Treffern = Rezept. */
+    /** So viele verschiedene Rezept-Wörter müssen zu sehen sein. */
+    const val HITS_TO_DETECT = 3
+
+    /** So viele müssen zu sehen bleiben, damit ein erkanntes Rezept weiter gilt. */
+    const val HITS_TO_KEEP = 2
+
+    /**
+     * Feeds, Videos und Chats: Dort stehen Rezept-Wörter ständig in Beschreibungen und Nachrichten,
+     * ohne dass wirklich gekocht wird. Wer dort kocht, nimmt den Kochmodus oder die Ausnahme-Liste.
+     */
+    private val NO_CONTENT_DETECTION = YouTubeLimit.PACKAGES + setOf(
+        "com.instagram.android", "com.zhiliaoapp.musically", "com.ss.android.ugc.trill",
+        "com.facebook.katana", "com.facebook.lite", "com.facebook.orca", "com.twitter.android",
+        "com.reddit.frontpage", "com.snapchat.android", "com.pinterest", "com.linkedin.android",
+        "com.whatsapp", "com.whatsapp.w4b", "org.telegram.messenger", "org.thoughtcrime.securesms",
+        "com.google.android.apps.messaging", "com.discord", "tv.twitch.android.app",
+        "com.netflix.mediaclient", "com.amazon.avod.thirdpartyclient", "com.android.systemui",
+    )
+
+    fun allowsContentDetection(pkg: String) = pkg !in NO_CONTENT_DETECTION
+
+    /** Wörter, die auf einer Rezeptseite stehen. */
     val CONTENT_KEYWORDS = listOf(
         "zutaten", "zubereitung", "portionen", "arbeitszeit", "kochzeit", "backzeit",
         "ruhezeit", "gesamtzeit", "schwierigkeitsgrad", "rezept", "esslöffel", "teelöffel",

@@ -13,11 +13,18 @@ class RecipeAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         instance = this
+        Watchdog.ensureRunning(this)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val now = System.currentTimeMillis()
-        if (event?.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED) ScrollMeter.onScroll(now)
+        when (event?.eventType) {
+            AccessibilityEvent.TYPE_VIEW_SCROLLED -> ScrollMeter.onScroll(now)
+            // App-Wechsel: sofort neu bewerten, statt auf den nächsten Takt zu warten
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> MonitorService.poke()
+        }
+        // Hat Android die Überwachung beendet, wird sie hier wieder gestartet
+        Watchdog.ensureRunning(this)
         if (now - lastScan < 2500) return
         scanNow()
     }
@@ -29,12 +36,12 @@ class RecipeAccessibilityService : AccessibilityService() {
             if (!Prefs(this).recipeContentDetection) return
             val root = rootInActiveWindow ?: return
             val pkg = root.packageName?.toString() ?: return
-            if (pkg == packageName || pkg == "com.android.systemui") return
+            if (pkg == packageName || !RecipeDetector.allowsContentDetection(pkg)) return
             val hits = HashSet<String>()
             val queue = ArrayDeque<AccessibilityNodeInfo>()
             queue.add(root)
             var visited = 0
-            while (queue.isNotEmpty() && visited < MAX_NODES && hits.size < 2) {
+            while (queue.isNotEmpty() && visited < MAX_NODES && hits.size < RecipeDetector.HITS_TO_DETECT) {
                 val n = queue.removeFirst()
                 visited++
                 n.text?.let { RecipeDetector.countHits(it.toString(), hits) }
@@ -42,11 +49,11 @@ class RecipeAccessibilityService : AccessibilityService() {
                 for (i in 0 until n.childCount) n.getChild(i)?.let { queue.add(it) }
             }
             when {
-                hits.size >= 2 -> RecipeDetector.markContentRecipe(pkg, now)
-                // schon als Rezept erkannt und noch ein Treffer sichtbar (z. B. runtergescrollt): weiter gültig
-                hits.size == 1 && RecipeDetector.isContentRecipeFresh(pkg, now) ->
+                hits.size >= RecipeDetector.HITS_TO_DETECT -> RecipeDetector.markContentRecipe(pkg, now)
+                // schon als Rezept erkannt und noch genug davon sichtbar (z. B. runtergescrollt): weiter gültig
+                hits.size >= RecipeDetector.HITS_TO_KEEP && RecipeDetector.isContentRecipeFresh(pkg, now) ->
                     RecipeDetector.markContentRecipe(pkg, now)
-                hits.isEmpty() -> RecipeDetector.clearContentRecipe(pkg)
+                hits.size < RecipeDetector.HITS_TO_KEEP -> RecipeDetector.clearContentRecipe(pkg)
             }
         }
     }

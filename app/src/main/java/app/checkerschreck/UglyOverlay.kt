@@ -69,13 +69,13 @@ class UglyOverlay(context: Context) {
 
     private fun alphaFor(level: Int): Float {
         val wanted = when (level) {
-            1 -> 0.30f
-            2 -> 0.52f
-            else -> 0.74f
+            1 -> 0.42f
+            2 -> 0.62f
+            else -> 0.78f
         }
         val maxAllowed = if (Build.VERSION.SDK_INT >= 31) {
             ctx.getSystemService(InputManager::class.java)?.maximumObscuringOpacityForTouch ?: 0.8f
         } else 1f
-        return min(wanted, maxAllowed - 0.03f).coerceAtLeast(0.05f)
+        return min(wanted, maxAllowed - 0.02f).coerceAtLeast(0.05f)
     }
 }

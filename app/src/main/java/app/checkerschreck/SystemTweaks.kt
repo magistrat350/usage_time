@@ -17,8 +17,9 @@ object SystemTweaks {
         applyAnimations(ctx, p, if (p.uglyAnimations && level >= 2) level.coerceAtMost(3) else 0)
     }
 
-    fun restore(ctx: Context, p: Prefs) {
-        applyFont(ctx, p, 0)
+    /** [keepFont]: Schrift nicht anfassen (jede Änderung lässt alle Apps neu laden). */
+    fun restore(ctx: Context, p: Prefs, keepFont: Boolean = false) {
+        if (!keepFont) applyFont(ctx, p, 0)
         applyAnimations(ctx, p, 0)
     }
 

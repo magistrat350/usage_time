@@ -29,14 +29,16 @@ Rezept offen, dann hat sie Verständnis. 🍳
 
 ### Die Hässlich-Stufen
 
-1. **Matsch** (Grundstufe, immer an): braun-grüne, pulsierende Tönung mit Streifen, oben ein kleiner Session-Timer.
-2. **Kotz-Regenbogen**: wechselnde Farben, dicke Streifen, wackelnder Text. Mit adb-Freigabe wird zusätzlich das **ganze Handy grau**.
-3. **Chaos**: Schachbrett in Pink, Giftgrün und Braun, gelbe Streifen, Flecken, Nerv-Vibration. Optional werden die Farben invertiert.
+1. **Matsch** (Grundstufe, immer an): braun-grüne, pulsierende Tönung mit Streifen und Flecken, Bildrauschen, dunkler Rand, wanderndes Absperrband als Rahmen, oben ein kleiner Session-Timer in Comic-Schrift.
+2. **Kotz-Regenbogen**: wechselnde Farben, dicke Streifen, Wasserzeichen „LEG DAS HANDY WEG“ quer über alles, ein Sprung im Display, treibende Ekel-Emojis, wackelnder Text. Mit adb-Freigabe wird zusätzlich das **ganze Handy grau**.
+3. **Chaos**: Schachbrett in Pink, Giftgrün und Braun, gelbe Streifen, großer Displaybruch, defekte Pixelspalten, zitternder Text, Nerv-Vibration. Optional werden die Farben invertiert.
 
 Ab Stufe 2 kommen dazu:
 
 - **Schrumpfender Bildschirm**: schwarze Balken an allen Rändern, die pro Minute wachsen (bis 12 % oben
   und unten, 6 % links und rechts). Sie schlucken Berührungen.
+- **Kleckse**: drei (Stufe 2) bzw. sechs (Stufe 3) Flecken, die alle 9 Sekunden woanders kleben und
+  Berührungen schlucken.
 - **Riesige Schrift**: braucht „Systemeinstellungen ändern“, in der App ohne PC erteilbar.
 - **Zähe Animationen**: braucht die adb-Freigabe (siehe unten).
 
@@ -71,6 +73,15 @@ adb shell pm grant app.checkerschreck android.permission.WRITE_SECURE_SETTINGS
 
 Die App merkt sich deine ursprünglichen Farbeinstellungen und stellt sie wieder her, sobald du das
 Handy weglegst oder ein Rezept öffnest.
+
+### Wenn die Überwachung aussetzt
+
+Manche Hersteller (OnePlus, Oppo, Xiaomi, Samsung …) beenden Apps im Hintergrund sehr aggressiv.
+Die App startet sich dann selbst neu (Wecker alle 15 Minuten, Bedienungshilfe,
+Benachrichtigungszugriff) und trägt die verpasste Nutzung nach. Die Karte „Diagnose“ zeigt, wie oft
+der Dienst heute gestartet wurde, welche App er gerade sieht und warum welche Stufe gilt. Steht dort
+eine hohe Zahl: Akku-Optimierung ausschalten, Autostart erlauben und die App in der Übersicht
+anpinnen. Mit aktivierter Bedienungshilfe läuft sie am stabilsten.
 
 ### Grenzen des Schummel-Schutzes
 
