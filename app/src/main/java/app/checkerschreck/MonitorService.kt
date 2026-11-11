@@ -343,9 +343,9 @@ class MonitorService : Service() {
             publishSnapshot(now, null, "Bildschirm aus")
             return
         }
-        // Solange der Sperrbildschirm zu sehen ist, wird schon alles so vorbereitet, wie es nach dem
-        // Entsperren sein muss. Android blendet die Fenster hinter dem Sperrbildschirm aus, nach dem
-        // Entsperren sind sie ohne Verzögerung da.
+        // Solange der Sperrbildschirm zu sehen ist, wird schon alles so gesetzt, wie es nach dem
+        // Entsperren sein muss, damit es ohne Verzögerung da ist. Normale Overlays blendet Android
+        // hinter dem Sperrbildschirm aus; über die Bedienungshilfe ist es auch dort schon hässlich.
         val locked = km.isKeyguardLocked
         if (!locked && prefs.unlockedAt == 0L) registerCheck(now)
         lastUsable = !locked

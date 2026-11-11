@@ -14,6 +14,7 @@ class RecipeAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         instance = this
         Watchdog.ensureRunning(this)
+        MonitorService.poke() // Overlay sofort über die Bedienungshilfe legen
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -59,6 +60,12 @@ class RecipeAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() {}
+
+    override fun onUnbind(intent: android.content.Intent?): Boolean {
+        if (instance === this) instance = null
+        MonitorService.poke()
+        return super.onUnbind(intent)
+    }
 
     override fun onDestroy() {
         if (instance === this) instance = null

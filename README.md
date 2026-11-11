@@ -42,6 +42,11 @@ Ab Stufe 2 kommen dazu:
 - **Riesige Schrift**: braucht „Systemeinstellungen ändern“, in der App ohne PC erteilbar.
 - **Zähe Animationen**: braucht die adb-Freigabe (siehe unten).
 
+**Überall hässlich:** Mit aktivierter Bedienungshilfe liegt das farbige Overlay über allem, auch
+über Benachrichtigungsleiste, Schnelleinstellungen, Status- und Navigationsleiste und dem
+Sperrbildschirm. Ohne Bedienungshilfe legt Android es unter diese Bereiche. Kleckse, Balken und
+Morgensperre bleiben bewusst darunter, damit Leiste und PIN-Eingabe immer bedienbar sind.
+
 Das farbige Overlay lässt Berührungen durch, das Handy bleibt also benutzbar, nur eben hässlich. Die
 Farben wechseln bewusst langsam und weich, ohne Stroboskop-Flackern. Schrift, Animationen und Farben
 werden zurückgesetzt, sobald der Bildschirm ausgeht, eine Ausnahme gilt oder die Überwachung endet.

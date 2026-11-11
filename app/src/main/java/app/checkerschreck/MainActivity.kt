@@ -456,7 +456,7 @@ class MainActivity : AppCompatActivity() {
             if (s.error.isNotEmpty()) l += "Letzter Fehler: ${s.error}"
         }
         fun mark(ok: Boolean) = if (ok) "an" else "aus"
-        l += "Bedienungshilfe (Rezept, Doomscroll, schneller App-Wechsel): " +
+        l += "Bedienungshilfe (hässlich auch in der Benachrichtigungsleiste, Rezept, Doomscroll): " +
             mark(RecipeAccessibilityService.instance != null)
         l += "Benachrichtigungszugriff (Auslöser): " + mark(NotificationTriggers.connected)
         l += "Riesenschrift: " + mark(Permissions.canWriteSettings(this)) +
@@ -518,8 +518,10 @@ class MainActivity : AppCompatActivity() {
             Permissions.ignoresBatteryOptimizations(this),
         ) { runCatching { startActivity(Permissions.batteryIntent(this)) } }
         permRow(
-            "Rezept-Erkennung (optional)",
-            "Bedienungshilfe „Checker-Schreck Rezept-Erkennung“ aktivieren – erkennt Rezepte auch im Browser. " +
+            "Bedienungshilfe (empfohlen)",
+            "Bedienungshilfe „Checker-Schreck Rezept-Erkennung“ aktivieren. Nur damit ist es auch in der " +
+                "Benachrichtigungsleiste, den Schnelleinstellungen und auf dem Sperrbildschirm hässlich. " +
+                "Außerdem erkennt sie Rezepte im Browser und Endlos-Scrollen. " +
                 "Ist sie ausgegraut: App-Info → ⋮ → „Eingeschränkte Einstellungen zulassen“.",
             Permissions.hasAccessibility(this),
             secondary = "App-Info" to { startActivity(Permissions.appDetailsIntent(this)) },
