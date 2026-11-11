@@ -16,6 +16,9 @@ Rezept offen, dann hat sie Verständnis. 🍳
 | **Analyse** | Checks heute, Reflex-Checks (< 60 s), Ø Abstand, längste Pause, Checks pro Stunde (Diagramm), Hotspot-Stunde, Vergleich mit den letzten 7 Tagen, Top-Apps, Urteil („Notorischer Checker“, „Goldfisch mit WLAN“ …). |
 | **Rezept-Ausnahme** | Rezept-Apps werden am Namen erkannt (Chefkoch, Kitchen Stories, Cookidoo …). Die optionale Bedienungshilfe erkennt Rezepte auch im Browser (Wörter wie „Zutaten“, „Zubereitung“, „Portionen“). Zusätzlich gibt es den Kochmodus (Standard: 2× am Tag je 45 min). |
 | **YouTube-Limit** | 20 min YouTube pro Tag (einstellbar, 0 = aus). 5 min vorher kommt eine Warnung. Danach ist YouTube sofort Stufe 2 (alle 5 min eine Stufe mehr) und die App wirft dich standardmäßig zurück auf den Startbildschirm. Gilt für die YouTube-App (auch Kids/ReVanced), nicht für YouTube im Browser. |
+| **Check-Budget** | Erlaubte Checks pro Tag. Darüber wird es eine Stufe hässlicher, ab 50 % drüber zwei. Wird automatisch aus deinem Schnitt gesetzt oder von Hand in den Einstellungen. |
+| **Automatisch zurückdrehen** | Jeden Tag um Mitternacht wird deine echte Nutzung der letzten 7 Tage ausgewertet. Tageslimit, Session-Limit, YouTube-Limit und Check-Budget werden auf „Schnitt minus 10 %“ gesetzt, wenn das strenger ist als bisher (höchstens 10 % pro Tag). Lockerer wird nichts von allein. Bewegt sich eine Woche nichts, wird trotzdem um 5 % gedreht. Untergrenzen: 30 min am Tag, 3 min Session, 5 min YouTube, 15 Checks. Startet nach 3 vollen Messtagen. |
+| **Update-Suche** | Knopf „Nach Updates suchen“ lädt die neueste APK aus dem GitHub-Release und öffnet den Installer. Beim Öffnen der App wird höchstens alle 12 Stunden automatisch nachgesehen. |
 | **Ausnahme-Apps** | Eigene Liste, z. B. Navi. Telefonate sind immer ausgenommen. |
 
 ### Die Hässlich-Stufen
@@ -71,5 +74,7 @@ private App ist das in Ordnung. Wer einen eigenen Schlüssel will, setzt `CS_KEY
 
 ## Datenschutz
 
-Alles bleibt auf dem Handy. Die App hat keine Internet-Berechtigung. Das Check-Protokoll
-(Zeitstempel) liegt im App-Speicher und wird nach 30 Tagen gelöscht.
+Alle Nutzungsdaten bleiben auf dem Handy. Die App geht nur für die Update-Suche ins Internet
+(Abruf von `version.json` und der APK aus dem GitHub-Release dieses Repos), es wird nichts
+hochgeladen. Das Check-Protokoll (Zeitstempel) liegt im App-Speicher und wird nach 30 Tagen
+gelöscht, die Tageszusammenfassungen nach 60 Tagen.

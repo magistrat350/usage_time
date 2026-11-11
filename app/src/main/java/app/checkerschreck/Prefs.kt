@@ -55,6 +55,15 @@ class Prefs(context: Context) {
     /** Nach Überschreiten des YouTube-Limits zurück auf den Startbildschirm werfen. */
     var youtubeKick by BoolPref(s, "youtube_kick", true)
 
+    /** Erlaubte Checks pro Tag (0 = aus). Darüber wird es eine Stufe hässlicher. */
+    var checkBudget by IntPref(s, "check_budget", 0)
+
+    /** Limits automatisch anhand der echten Nutzung zurückdrehen. */
+    var adaptiveEnabled by BoolPref(s, "adaptive_enabled", true)
+
+    /** Ziel: so viel Prozent unter dem 7-Tage-Schnitt. */
+    var adaptiveReductionPct by IntPref(s, "adaptive_reduction_pct", 10)
+
     var cookingMinutes by IntPref(s, "cooking_minutes", 45)
     var cookingPerDay by IntPref(s, "cooking_per_day", 2)
 
@@ -83,6 +92,19 @@ class Prefs(context: Context) {
     var penaltyUntil by LongPref(st, "penalty_until", 0L)
     var penaltyLevel by IntPref(st, "penalty_level", 0)
     var maxLevelToday by IntPref(st, "max_level_today", 0)
+    var longestSessionToday by LongPref(st, "longest_session_today", 0L)
+
+    /** Erster (unvollständiger) Messtag, zählt nicht für den Schnitt. */
+    var firstDayKey by StringPref(st, "first_day_key", "")
+    var historyRaw by StringPref(st, "history", "")
+    var adaptiveLastDropDay by LongPref(st, "adaptive_last_drop_day", 0L)
+    var adaptiveReport by StringPref(st, "adaptive_report", "")
+    var adaptiveReportDay by StringPref(st, "adaptive_report_day", "")
+    var adaptiveReportPending by BoolPref(st, "adaptive_report_pending", false)
+
+    // Updates
+    var lastUpdateCheck by LongPref(st, "last_update_check", 0L)
+    var updateDismissedVersion by IntPref(st, "update_dismissed_version", 0)
 
     // Ursprüngliche Systemfarben (für Graustufen/Invertierung)
     var colorOrigSaved by BoolPref(st, "color_orig_saved", false)

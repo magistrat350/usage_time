@@ -13,6 +13,11 @@ android {
         targetSdk = 35
         versionCode = (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1)
         versionName = "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        // Repo, in dessen Release "apk-latest" die App nach Updates sucht
+        buildConfigField(
+            "String", "UPDATE_REPO",
+            "\"" + (System.getenv("GITHUB_REPOSITORY") ?: "magistrat350/usage_time") + "\"",
+        )
     }
 
     signingConfigs {
@@ -34,6 +39,10 @@ android {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("shared")
         }
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     compileOptions {

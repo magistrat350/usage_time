@@ -11,7 +11,14 @@ import kotlin.math.min
 object Escalation {
     fun base(p: Prefs) = if (p.alwaysUgly) 1 else 0
 
-    fun level(p: Prefs, sessionMs: Long, dailyMs: Long, penaltyLevel: Int): Int {
+    /** Zusatzstufen, wenn das Check-Budget überzogen ist (1 = drüber, 2 = mehr als 50 % drüber). */
+    fun checkLevel(p: Prefs, checksToday: Int): Int {
+        val budget = p.checkBudget
+        if (budget <= 0 || checksToday <= budget) return 0
+        return if (checksToday > budget * 3 / 2) 2 else 1
+    }
+
+    fun level(p: Prefs, sessionMs: Long, dailyMs: Long, penaltyLevel: Int, checkLevel: Int = 0): Int {
         val base = base(p)
         var l = base
         val limit = p.sessionLimitMin * 60_000L
@@ -20,6 +27,7 @@ object Escalation {
         val daily = p.dailyLimitMin * 60_000L
         if (dailyMs >= daily) l = max(l, base + 1 + ((dailyMs - daily) / (30 * 60_000L)).toInt())
         if (penaltyLevel > 0) l = max(l, base + penaltyLevel)
+        if (checkLevel > 0) l = max(l, base + checkLevel)
         return min(l, p.maxLevel.coerceIn(1, 3)).coerceAtLeast(0)
     }
 

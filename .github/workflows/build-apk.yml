@@ -34,6 +34,10 @@ jobs:
           ./gradlew --no-daemon assembleRelease
           mkdir -p out
           cp app/build/outputs/apk/release/app-release.apk out/checker-schreck.apk
+          # Wird von der Update-Suche in der App gelesen
+          printf '{"versionCode": %s, "versionName": "1.0.%s", "sha": "%s", "branch": "%s"}\n' \
+            "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_NUMBER" "${GITHUB_SHA::7}" "$GITHUB_REF_NAME" > out/version.json
+          cat out/version.json
 
       - name: APK als Artefakt hochladen
         uses: actions/upload-artifact@v4
@@ -46,8 +50,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete apk-latest --cleanup-tag -y || true
-          gh release create apk-latest out/checker-schreck.apk \
+          gh release create apk-latest out/checker-schreck.apk out/version.json \
             --target "$GITHUB_SHA" \
             --prerelease \
-            --title "Checker-Schreck (neueste APK)" \
+            --title "Checker-Schreck (neueste APK, Build ${GITHUB_RUN_NUMBER})" \
             --notes "Automatisch gebaut aus ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}. APK auf dem Handy herunterladen und installieren."

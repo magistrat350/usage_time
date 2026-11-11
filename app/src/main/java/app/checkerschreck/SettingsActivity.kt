@@ -32,6 +32,24 @@ class SettingsActivity : AppCompatActivity() {
         }
         slider(limits, "Maximale Hässlich-Stufe", "", 1, 3, { p.maxLevel }) { p.maxLevel = it }
 
+        val auto = col.card("Automatisch zurückdrehen")
+        switch(auto, "Limits anhand meiner Nutzung immer weiter senken", { p.adaptiveEnabled }) {
+            p.adaptiveEnabled = it
+        }
+        slider(auto, "Ziel: unter meinem 7-Tage-Schnitt", "%", 5, 30, { p.adaptiveReductionPct }, step = 5) {
+            p.adaptiveReductionPct = it
+        }
+        auto.text(
+            "Jeden Tag um Mitternacht wird deine echte Nutzung der letzten 7 Tage ausgewertet. Tageslimit, " +
+                "Session-Limit, YouTube-Limit und Check-Budget werden auf deinen Schnitt minus diesen Prozentsatz " +
+                "gesetzt, aber nur, wenn das strenger ist als bisher (höchstens 10 % pro Tag). Lockerer wird " +
+                "nichts von allein; bewegt sich eine Woche nichts, wird trotzdem um 5 % gedreht. Untergrenzen: " +
+                "${Adaptive.FLOOR_DAILY_MIN} min am Tag, ${Adaptive.FLOOR_SESSION_MIN} min Session, " +
+                "${Adaptive.FLOOR_YOUTUBE_MIN} min YouTube, ${Adaptive.FLOOR_CHECKS} Checks. " +
+                "Von Hand kannst du die Limits jederzeit ändern.",
+            12f, topDp = 6, alpha = 0.7f,
+        )
+
         val yt = col.card("YouTube")
         slider(yt, "YouTube-Tageslimit (0 = aus)", "min", 0, 120, { p.youtubeLimitMin }, step = 5) {
             p.youtubeLimitMin = it
@@ -46,6 +64,9 @@ class SettingsActivity : AppCompatActivity() {
         )
 
         val checks = col.card("Check-Analyse")
+        slider(checks, "Check-Budget pro Tag (0 = aus)", "Checks", 0, 200, { p.checkBudget }, step = 5) {
+            p.checkBudget = it
+        }
         slider(checks, "Check-Attacke ab", "Checks", 2, 20, { p.burstCount }) { p.burstCount = it }
         slider(checks, "… innerhalb von", "min", 5, 60, { p.burstWindowMin }) { p.burstWindowMin = it }
         slider(checks, "Strafe bei Check-Attacke", "min", 1, 60, { p.burstPenaltyMin }) { p.burstPenaltyMin = it }

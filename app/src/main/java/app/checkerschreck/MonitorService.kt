@@ -51,6 +51,7 @@ class MonitorService : Service() {
     private var youtubeMs = 0L
     private var lastFg: String? = null
     private var lastKick = 0L
+    private var memDay = ""
 
     private var ticking = false
     private var lastTick = 0L
@@ -92,6 +93,7 @@ class MonitorService : Service() {
         km = getSystemService(KeyguardManager::class.java)
         val now = System.currentTimeMillis()
         rolloverIfNeeded(prefs, now)
+        memDay = Analyzer.dayKey(now)
         sessionActiveMs = prefs.sessionActiveMs
         dailyActiveMs = prefs.dailyActiveMs
         screenActiveMs = prefs.screenActiveMs
@@ -112,6 +114,7 @@ class MonitorService : Service() {
         }
         ContextCompat.registerReceiver(this, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         running = true
+        announceAdaptive()
         if (pm.isInteractive) {
             if (!km.isKeyguardLocked && prefs.unlockedAt == 0L) registerCheck(now)
             startTicking()
@@ -174,7 +177,7 @@ class MonitorService : Service() {
 
     private fun registerCheck(now: Long) {
         if (now - prefs.lastCheckAt < 3000) return
-        if (rolloverIfNeeded(prefs, now)) resetDaily()
+        rollover(now)
         // Session nur zurücksetzen, wenn der Bildschirm lange genug aus war (kein Schummeln
         // durch kurzes Aus- und Einschalten).
         val off = prefs.lastScreenOff
@@ -190,6 +193,10 @@ class MonitorService : Service() {
         prefs.lastCheckAt = now
         prefs.checksToday = prefs.checksToday + 1
         UsageLog.addCheck(this, now)
+        val budget = prefs.checkBudget
+        if (budget > 0 && prefs.checksToday == budget + 1) {
+            alert("Check-Budget aufgebraucht 🧮", "$budget Checks waren für heute drin. Ab jetzt eine Stufe hässlicher.")
+        }
 
         // Check-Attacke erkennen
         val recent = UsageLog.checksSince(this, now - prefs.burstWindowMin * 60_000L)
@@ -210,7 +217,8 @@ class MonitorService : Service() {
             val since = if (previous > 0 && Analyzer.dayKey(previous) == Analyzer.dayKey(now)) {
                 " · letzter vor ${fmtDuration(now - previous)}"
             } else ""
-            Toast.makeText(this, "Check #${prefs.checksToday} heute$since", Toast.LENGTH_SHORT).show()
+            val of = if (budget > 0) " von $budget" else ""
+            Toast.makeText(this, "Check #${prefs.checksToday}$of heute$since", Toast.LENGTH_SHORT).show()
         }
         updateNotification(force = true)
     }
@@ -239,7 +247,7 @@ class MonitorService : Service() {
 
     private fun tick() {
         val now = System.currentTimeMillis()
-        if (rolloverIfNeeded(prefs, now)) resetDaily()
+        rollover(now)
         tickAccounting(now)
 
         val usable = pm.isInteractive && !km.isKeyguardLocked
@@ -263,7 +271,8 @@ class MonitorService : Service() {
         val onYouTube = exempt == null && YouTubeLimit.isYouTube(fg)
         val ytLevel = if (onYouTube) YouTubeLimit.level(prefs, youtubeMs) else 0
         val newLevel = if (exempt != null) 0 else {
-            maxOf(Escalation.level(prefs, sessionActiveMs, dailyActiveMs, penalty), ytLevel)
+            val checkLevel = Escalation.checkLevel(prefs, prefs.checksToday)
+            maxOf(Escalation.level(prefs, sessionActiveMs, dailyActiveMs, penalty, checkLevel), ytLevel)
                 .coerceAtMost(maxOf(prefs.maxLevel.coerceIn(1, 3), minOf(ytLevel, 3)))
         }
         val levelChanged = newLevel != level
@@ -320,9 +329,31 @@ class MonitorService : Service() {
         }
     }
 
-    private fun resetDaily() {
+    /** Tageswechsel: Zähler sichern, Tag abschließen (inkl. Limit-Anpassung), neu anfangen. */
+    private fun rollover(now: Long) {
+        val key = Analyzer.dayKey(now)
+        if (memDay == key) return
+        if (prefs.dayKey != key) persist() // damit der abgeschlossene Tag die letzten Sekunden enthält
+        rolloverIfNeeded(prefs, now)
         dailyActiveMs = 0L
         youtubeMs = 0L
+        memDay = key
+        announceAdaptive()
+    }
+
+    private fun announceAdaptive() {
+        if (!prefs.adaptiveReportPending) return
+        prefs.adaptiveReportPending = false
+        val report = prefs.adaptiveReport
+        if (report.isBlank() || !Permissions.hasNotifications(this)) return
+        val n = NotificationCompat.Builder(this, App.CH_ALERT)
+            .setSmallIcon(R.drawable.ic_notif)
+            .setContentTitle("Limits zurückgedreht 🔧")
+            .setContentText(report.lines().first())
+            .setStyle(NotificationCompat.BigTextStyle().bigText(report))
+            .setAutoCancel(true)
+            .build()
+        getSystemService(NotificationManager::class.java).notify(ADAPTIVE_ID, n)
     }
 
     private fun overlayLines(now: Long, penalty: Int): List<String> {
@@ -337,7 +368,8 @@ class MonitorService : Service() {
             // Grundstufe: kurz und oben, damit man noch lesen kann
             val next = Escalation.minutesToNextLevel(prefs, sessionActiveMs)
             l += "Session ${fmtClock(sessionActiveMs)} · Stufe 2 in $next min"
-            l += "${prefs.checksToday} Checks heute"
+            val budget = prefs.checkBudget
+            l += if (budget > 0) "${prefs.checksToday} von $budget Checks heute" else "${prefs.checksToday} Checks heute"
             return l
         }
         l += UglyView.INSULTS[insultIdx]
@@ -357,6 +389,7 @@ class MonitorService : Service() {
         prefs.dailyActiveMs = dailyActiveMs
         prefs.screenActiveMs = screenActiveMs
         prefs.youtubeMsToday = youtubeMs
+        if (sessionActiveMs > prefs.longestSessionToday) prefs.longestSessionToday = sessionActiveMs
     }
 
     // ------------------------------------------------------------------ Benachrichtigungen
@@ -424,6 +457,7 @@ class MonitorService : Service() {
         private const val TICK_MS = 2_000L
         private const val NOTIF_ID = 1
         private const val ALERT_ID = 2
+        private const val ADAPTIVE_ID = 3
         const val ACTION_STOP = "app.checkerschreck.STOP"
         const val ACTION_COOKING = "app.checkerschreck.COOKING"
 
@@ -445,7 +479,20 @@ class MonitorService : Service() {
         /** Neuer Tag? Dann Tageszähler zurücksetzen. Gibt true zurück, wenn zurückgesetzt wurde. */
         fun rolloverIfNeeded(p: Prefs, now: Long): Boolean {
             val key = Analyzer.dayKey(now)
-            if (p.dayKey == key) return false
+            val old = p.dayKey
+            if (old == key) return false
+            if (p.firstDayKey.isEmpty()) p.firstDayKey = old.ifEmpty { key }
+            // Abgeschlossenen Tag festhalten (der erste, unvollständige Messtag zählt nicht)
+            if (old.isNotEmpty() && old != p.firstDayKey) {
+                History.add(p, DayRecord(old, p.dailyActiveMs, p.checksToday, p.youtubeMsToday, p.longestSessionToday))
+                val changes = Adaptive.adjust(p, (Analyzer.startOfDay(now) + 12 * 3600_000L) / 86_400_000L)
+                if (changes.isNotEmpty()) {
+                    p.adaptiveReport = changes.joinToString("\n")
+                    p.adaptiveReportDay = key
+                    p.adaptiveReportPending = true
+                }
+            }
+            p.longestSessionToday = 0L
             p.dayKey = key
             p.dailyActiveMs = 0L
             p.checksToday = 0
