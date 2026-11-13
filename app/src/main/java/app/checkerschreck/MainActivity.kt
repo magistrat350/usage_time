@@ -36,6 +36,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var insights: TextView
     private lateinit var topApps: TextView
     private lateinit var cookBtn: MaterialButton
+    private lateinit var nightBtn: MaterialButton
     private lateinit var weaning: TextView
     private lateinit var triggers: TextView
     private lateinit var diagnosis: TextView
@@ -106,6 +107,7 @@ class MainActivity : AppCompatActivity() {
         cookBtn = actions.button("🍳 Kochmodus") {
             if (CookingMode.start(this)) refreshStatus()
         }
+        nightBtn = actions.button("🌙 Nachtmodus heute später", outlined = true) { askNightDelay() }
         actions.text("Hässlichkeit testen (6 Sekunden):", 13f, topDp = 10, alpha = 0.7f)
         val previewRow = actions.row()
         for (lvl in 1..3) {
@@ -322,10 +324,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun toggleMonitoring() {
         if (MonitorService.running) {
-            Guard.request(this, prefs, Guard.stopChange()) {
-                refreshPending()
-                handler.postDelayed({ refreshStatus() }, 300)
+            if (prefs.pausedUntil > System.currentTimeMillis()) {
+                prefs.pausedUntil = 0L // Pause vorzeitig beenden ist strenger: geht sofort
+                toast("Pause beendet.")
+                refreshStatus()
+                return
             }
+            askPauseOrStop()
             return
         }
         if (!requiredGranted()) {
@@ -340,6 +345,77 @@ class MainActivity : AppCompatActivity() {
         Watchdog.schedule(this)
         MonitorService.start(this)
         handler.postDelayed({ refreshStatus(); refreshStats() }, 500)
+    }
+
+    /** Statt die Überwachung ganz zu stoppen, lässt sie sich befristet pausieren. Danach läuft sie von selbst weiter. */
+    private fun askPauseOrStop() {
+        val end = prefs.nightEndHour
+        val options = listOf(
+            "30 Minuten pausieren" to 30,
+            "1 Stunde pausieren" to 60,
+            "2 Stunden pausieren" to 120,
+            "Bis $end Uhr pausieren" to Schedule.minutesUntilHour(System.currentTimeMillis(), end),
+            "Ganz stoppen (läuft nicht von selbst wieder an)" to -1,
+        )
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Pausieren oder stoppen?")
+            .setItems(options.map { it.first }.toTypedArray()) { _, i ->
+                val minutes = options[i].second
+                val change = if (minutes < 0) Guard.stopChange() else Guard.pauseChange(minutes)
+                Guard.request(this, prefs, change) {
+                    refreshPending()
+                    handler.postDelayed({ refreshStatus() }, 300)
+                }
+            }
+            .setNegativeButton("Abbrechen", null)
+            .show()
+    }
+
+    /**
+     * Nachtmodus für die kommende bzw. laufende Nacht verschieben. Rechtzeitig vorher geplant ist das
+     * frei (begrenzt pro Woche), spontan mitten in der Nacht kostet es einen abgetippten Satz.
+     */
+    private fun askNightDelay() {
+        val now = System.currentTimeMillis()
+        val (start, inside) = Schedule.nightWindow(prefs, now)
+        val key = Analyzer.dayKey(start)
+        val current = Schedule.nightDelayMin(prefs, key)
+        val steps = (if (current > 0) listOf(0) else emptyList()) + listOf(30, 60, 90, 120, 180)
+        val labels = steps.map { m ->
+            val at = Schedule.clock(start + m * 60_000L)
+            when {
+                m == 0 -> "Aufschub zurücknehmen (wieder ab $at Uhr)"
+                m == current -> "ab $at Uhr (so eingestellt)"
+                else -> "ab $at Uhr (+$m min)"
+            }
+        }
+        val left = (prefs.nightDelaysPerWeek - Schedule.plannedDelaysUsed(prefs, now)).coerceAtLeast(0)
+        val title = if (inside) {
+            "Nachtmodus läuft schon: Verschieben kostet einen Satz"
+        } else {
+            "Nachtmodus heute später (frei geplant: noch $left× diese Woche)"
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(title)
+            .setItems(labels.toTypedArray()) { _, i ->
+                val minutes = steps[i]
+                val apply = { planned: Boolean ->
+                    Schedule.setNightDelay(prefs, System.currentTimeMillis(), minutes, planned)
+                    toast(if (minutes == 0) "Aufschub zurückgenommen." else "Nachtmodus heute erst ab ${Schedule.clock(start + minutes * 60_000L)} Uhr.")
+                    refreshStatus()
+                }
+                when {
+                    Schedule.delayIsFree(prefs, System.currentTimeMillis(), minutes) -> apply(true)
+                    prefs.guardMode == Guard.OFF -> apply(false)
+                    else -> Guard.typeSentence(
+                        this, "Nachtmodus verschieben?",
+                        "Nicht rechtzeitig geplant oder Wochenkontingent aufgebraucht. Tippe dafür diesen Satz ab:",
+                        onOk = { apply(false) }, onCancel = {},
+                    )
+                }
+            }
+            .setNegativeButton("Abbrechen", null)
+            .show()
     }
 
     private fun preview(level: Int) {
@@ -361,7 +437,11 @@ class MainActivity : AppCompatActivity() {
             statusDetail.text = "Starte die Überwachung, damit Checks gezählt werden und das Handy bei zu langer Nutzung hässlich wird."
             toggle.text = "Überwachung starten"
         } else {
-            toggle.text = "Überwachung stoppen"
+            toggle.text = if (prefs.pausedUntil > now) {
+                "Pause beenden (noch ${fmtDuration(prefs.pausedUntil - now)})"
+            } else {
+                "Pausieren oder stoppen"
+            }
             val s = snap
             statusTitle.text = when {
                 s == null -> "👀 Passt auf"
@@ -377,6 +457,9 @@ class MainActivity : AppCompatActivity() {
                 if (s.exempt == null && !s.night && s.sessionMs < Escalation.sessionLimitMs(prefs, factor)) {
                     val next = Escalation.base(prefs) + 1
                     parts += "Noch ${Escalation.minutesToNextLevel(prefs, s.sessionMs, factor)} min bis Stufe $next"
+                }
+                if (s.nightLeftMs > 0) {
+                    parts += "🌙 Nacht-Budget: noch ${fmtDuration(s.nightLeftMs + 59_000)}, dann Stufe 3 bis ${prefs.nightEndHour} Uhr"
                 }
                 if (s.dayStrict) parts += "☀️ Tagsüber strenger: Session-Limit nur ${prefs.dayStrictPct} %"
                 if (s.doomscroll) parts += "📜 Endlos-Scrollen erkannt: Uhr läuft ${prefs.doomscrollFactor}× so schnell"
@@ -400,6 +483,13 @@ class MainActivity : AppCompatActivity() {
         liftBtn.visibility =
             if (Schedule.morningBlocked(prefs, now)) android.view.View.VISIBLE else android.view.View.GONE
         refreshDiagnosis(snap, now)
+        nightBtn.visibility = if (prefs.nightEnabled) android.view.View.VISIBLE else android.view.View.GONE
+        val nightStart = Schedule.effectiveNightStart(prefs, now)
+        nightBtn.text = if (Schedule.nightDelayMin(prefs, Schedule.state(prefs, now).nightKey) > 0 && now < nightStart) {
+            "🌙 Nachtmodus heute erst ab ${Schedule.clock(nightStart)} Uhr (ändern)"
+        } else {
+            "🌙 Nachtmodus heute später"
+        }
         val cooking = prefs.cookingUntil > now
         cookBtn.text = if (cooking) {
             "🍳 Kochmodus läuft (${fmtDuration(prefs.cookingUntil - now)})"

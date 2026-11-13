@@ -82,6 +82,10 @@ object Rules {
         { it.nightStartHour }, { p, v -> p.nightStartHour = v }, format = { hour(it) })
     val NIGHT_END = IntSetting("night_end", "Nachtmodus bis", "", Loose.DOWN,
         { it.nightEndHour }, { p, v -> p.nightEndHour = v }, format = { hour(it) })
+    val NIGHT_BUDGET = IntSetting("night_budget", "Nacht-Budget, bevor Stufe 3 gilt", "min", Loose.UP,
+        { it.nightBudgetMin }, { p, v -> p.nightBudgetMin = v })
+    val NIGHT_DELAYS = IntSetting("night_delays", "Geplante Aufschübe pro Woche", "×", Loose.UP,
+        { it.nightDelaysPerWeek }, { p, v -> p.nightDelaysPerWeek = v })
     val MORNING_MIN = IntSetting("morning_min", "Morgensperre nach dem ersten Entsperren", "min", Loose.DOWN,
         { it.morningBlockMin }, { p, v -> p.morningBlockMin = v })
     val DAY_START = IntSetting("day_start", "Tagsüber strenger ab", "", Loose.UP,
@@ -117,7 +121,7 @@ object Rules {
         { it.stickers }, { p, v -> p.stickers = v })
     val RECIPE_CONTENT = BoolSetting("recipe_content", "Rezepte auf dem Bildschirm erkennen (Bedienungshilfe)", null,
         { it.recipeContentDetection }, { p, v -> p.recipeContentDetection = v })
-    val NIGHT = BoolSetting("night", "Nachtmodus: sofort Stufe 3 und Graustufen", false,
+    val NIGHT = BoolSetting("night", "Nachtmodus: Stufe 3 und Graustufen", false,
         { it.nightEnabled }, { p, v -> p.nightEnabled = v })
     val MORNING = BoolSetting("morning", "Morgensperre", false,
         { it.morningBlockEnabled }, { p, v -> p.morningBlockEnabled = v })
@@ -131,7 +135,7 @@ object Rules {
     val ints: Map<String, IntSetting> = listOf(
         SESSION_LIMIT, ESCALATION_STEP, DAILY_LIMIT, RESET_PAUSE, MAX_LEVEL, ADAPTIVE_PCT, YOUTUBE_LIMIT,
         CHECK_BUDGET, BURST_COUNT, BURST_WINDOW, BURST_PENALTY, SHORT_CHECK, COOKING_MIN, COOKING_PER_DAY,
-        GUARD_MODE, NIGHT_START, NIGHT_END, MORNING_MIN, DAY_START, DAY_END, DAY_PCT, DOOM_FACTOR,
+        GUARD_MODE, NIGHT_START, NIGHT_END, NIGHT_BUDGET, NIGHT_DELAYS, MORNING_MIN, DAY_START, DAY_END, DAY_PCT, DOOM_FACTOR,
     ).associateBy { it.id }
 
     val bools: Map<String, BoolSetting> = listOf(

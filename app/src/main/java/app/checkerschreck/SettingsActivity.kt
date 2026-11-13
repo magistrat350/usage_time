@@ -42,6 +42,15 @@ class SettingsActivity : AppCompatActivity() {
         switch(times, Rules.NIGHT)
         slider(times, Rules.NIGHT_START, 18, 23)
         slider(times, Rules.NIGHT_END, 4, 10)
+        slider(times, Rules.NIGHT_BUDGET, 0, 60, step = 5)
+        slider(times, Rules.NIGHT_DELAYS, 0, 7)
+        note(
+            times,
+            "Nachts ist erst das Nacht-Budget an normaler Nutzung drin, danach gilt Stufe 3 bis zum Morgen " +
+                "(0 = sofort Stufe 3). Telefonate und Ausnahmen zehren nicht am Budget. Für späte Abende gibt es " +
+                "auf dem Hauptbildschirm „Nachtmodus heute später“: vor Beginn der Nacht geplant ist das so oft " +
+                "pro Woche frei wie hier eingestellt, spontan kostet es einen abgetippten Satz.",
+        )
         switch(times, Rules.MORNING)
         slider(times, Rules.MORNING_MIN, 5, 120, step = 5)
         note(

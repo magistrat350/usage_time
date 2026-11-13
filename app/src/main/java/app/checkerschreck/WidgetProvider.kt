@@ -46,6 +46,7 @@ class WidgetProvider : AppWidgetProvider() {
                         snap == null -> "Passt auf 👀"
                         snap.exempt != null -> "Pause: ${snap.exempt}"
                         snap.night -> "🌙 Nachtmodus: Stufe 3"
+                        snap.nightLeftMs > 0 -> "🌙 Nacht-Budget: noch ${fmtDuration(snap.nightLeftMs + 59_000)}"
                         else -> "Session ${fmtClock(snap.sessionMs)} · Stufe ${snap.level}"
                     },
                 )

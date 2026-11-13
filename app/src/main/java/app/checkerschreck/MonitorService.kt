@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.media.AudioManager
+import android.media.MediaRecorder
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -35,7 +36,10 @@ class MonitorService : Service() {
         val dailyMs: Long,
         val penaltyUntil: Long,
         val youtubeMs: Long,
+        /** Nachtmodus mit aufgebrauchtem Budget: Stufe 3. */
         val night: Boolean,
+        /** Restliches Nacht-Budget in ms, solange das Nachtfenster läuft; sonst -1. */
+        val nightLeftMs: Long,
         val dayStrict: Boolean,
         val doomscroll: Boolean,
         val morningBlockUntil: Long,
@@ -63,11 +67,14 @@ class MonitorService : Service() {
     private var memDay = ""
     private var scrollMs = 0L
     private var night = false
+    private var nightWindow = false
+    private var nightUsedMs = 0L
     private var dayStrict = false
     private var doom = false
     private var blocked = false
     private var lastMinuteJobs = 0L
     private var lastUsable = false
+    private var nightLeftMs = -1L
     private var lastPoke = 0L
     private var lastError = ""
     private var audio: AudioManager? = null
@@ -123,6 +130,7 @@ class MonitorService : Service() {
         screenActiveMs = prefs.screenActiveMs
         youtubeMs = prefs.youtubeMsToday
         scrollMs = prefs.scrollMsToday
+        nightUsedMs = prefs.nightUsedMs
         backcharge(now)
         prefs.serviceAlive = true
         prefs.lastAliveAt = now
@@ -214,10 +222,22 @@ class MonitorService : Service() {
         updateNotification(force = true)
     }
 
+    /**
+     * Läuft ein Telefonat oder (Video-)Anruf, auch über WhatsApp, Signal, Teams usw.?
+     * Zwei unabhängige Zeichen: der Audio-Modus des Geräts und ob gerade ein Mikrofon für
+     * Sprachkommunikation offen ist.
+     */
     private fun inCall(): Boolean {
-        val mode = audio?.mode ?: return false
-        return mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION ||
+        val a = audio ?: return false
+        val mode = a.mode
+        if (mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION ||
             mode == AudioManager.MODE_RINGTONE
+        ) return true
+        return runCatching {
+            a.activeRecordingConfigurations.any {
+                it.clientAudioSource == MediaRecorder.AudioSource.VOICE_COMMUNICATION
+            }
+        }.getOrDefault(false)
     }
 
     /**
@@ -317,6 +337,7 @@ class MonitorService : Service() {
         if (ScrollMeter.scrolledWithin(now, 3_000)) scrollMs += dt
         dailyActiveMs += dt
         screenActiveMs += dt
+        if (nightWindow) nightUsedMs += dt // zehrt am Nacht-Budget
         if (YouTubeLimit.isYouTube(lastFg)) youtubeMs += dt
     }
 
@@ -359,7 +380,17 @@ class MonitorService : Service() {
         exempt = if (inCall()) "Telefonat" else RecipeDetector.exemptReason(this, prefs, fg, now)
 
         val sched = Schedule.state(prefs, now)
-        night = sched.night
+        if (prefs.nightKey != sched.nightKey) { // neue Nacht: Budget wieder voll
+            prefs.nightKey = sched.nightKey
+            nightUsedMs = 0L
+            prefs.nightUsedMs = 0L
+        }
+        // Nachts ist erst ein kleines Budget normale Nutzung drin, danach gilt Stufe 3 bis zum Morgen.
+        // Ausnahmen (Telefonate, Rezepte, Pause) zehren nicht am Budget.
+        nightWindow = sched.night
+        val nightBudgetMs = prefs.nightBudgetMin.coerceAtLeast(0) * 60_000L
+        night = nightWindow && nightUsedMs >= nightBudgetMs
+        nightLeftMs = if (nightWindow) (nightBudgetMs - nightUsedMs).coerceAtLeast(0) else -1L
         dayStrict = sched.dayStrict && !sched.night
         doom = !locked && exempt == null && prefs.doomscrollEnabled && ScrollMeter.isDoomscrolling(now)
         val factor = limitFactor()
@@ -396,7 +427,7 @@ class MonitorService : Service() {
         if (exempt != null) {
             why += "Ausnahme: $exempt"
         } else {
-            if (night) why += "Nachtmodus"
+            if (night) why += "Nachtmodus" else if (nightWindow) why += "Nacht-Budget läuft"
             if (session >= Escalation.sessionLimitMs(prefs, factor)) why += "Session über Limit"
             if (dailyActiveMs >= prefs.dailyLimitMin * 60_000L) why += "Tageslimit überschritten"
             if (penalty > 0) why += "Check-Strafe"
@@ -442,6 +473,13 @@ class MonitorService : Service() {
                 alert("Limit erreicht", "Session-Limit erreicht$extra. $msg 🤢")
             }
             if (onYouTube) checkYouTube(now)
+            if (night && exempt == null && nightBudgetMs > 0 && prefs.nightAlertKey != sched.nightKey) {
+                prefs.nightAlertKey = sched.nightKey
+                alert(
+                    "🌙 Nacht-Budget aufgebraucht",
+                    "Ab jetzt Stufe 3 bis ${prefs.nightEndHour} Uhr. Telefonate bleiben ausgenommen.",
+                )
+            }
         }
 
         publishSnapshot(now, fg, why.joinToString(", "))
@@ -555,6 +593,7 @@ class MonitorService : Service() {
             l += "${prefs.checksToday} Checks heute"
             return l
         }
+        val nightHint = if (nightLeftMs > 0) "🌙 Nacht-Budget: noch ${fmtDuration(nightLeftMs + 59_000)}" else null
         if (level == 1 && penalty == 0) {
             // Grundstufe: kurz und oben, damit man noch lesen kann
             val next = Escalation.minutesToNextLevel(prefs, session, limitFactor())
@@ -562,12 +601,14 @@ class MonitorService : Service() {
             l += "Session ${fmtClock(session)} · Stufe 2 in $next min$fast"
             val budget = prefs.checkBudget
             l += if (budget > 0) "${prefs.checksToday} von $budget Checks heute" else "${prefs.checksToday} Checks heute"
+            if (nightHint != null) l += nightHint
             return l
         }
         l += UglyView.INSULTS[insultIdx]
         l += "Session: ${fmtClock(sessionActiveMs)}"
         l += "Heute: ${fmtDuration(dailyActiveMs)} · ${prefs.checksToday} Checks"
         if (doom) l += "📜 Endlos-Scrollen: Uhr läuft ${prefs.doomscrollFactor}× so schnell"
+        if (nightHint != null) l += nightHint
         if (penalty > 0) l += "Check-Strafe noch ${fmtDuration(prefs.penaltyUntil - now)}"
         return l
     }
@@ -575,7 +616,7 @@ class MonitorService : Service() {
     private fun publishSnapshot(now: Long, fg: String?, reason: String) {
         snapshot = Snapshot(
             level, fg, exempt, sessionActiveMs, dailyActiveMs, prefs.penaltyUntil, youtubeMs,
-            night, dayStrict, doom, if (blocked) prefs.morningBlockUntil else 0L, reason, lastError, now,
+            night, nightLeftMs, dayStrict, doom, if (blocked) prefs.morningBlockUntil else 0L, reason, lastError, now,
         )
     }
 
@@ -586,6 +627,7 @@ class MonitorService : Service() {
         prefs.screenActiveMs = screenActiveMs
         prefs.youtubeMsToday = youtubeMs
         prefs.scrollMsToday = scrollMs
+        prefs.nightUsedMs = nightUsedMs
         prefs.lastAliveAt = lastPersist
         if (sessionActiveMs > prefs.longestSessionToday) prefs.longestSessionToday = sessionActiveMs
         WidgetProvider.render(this)

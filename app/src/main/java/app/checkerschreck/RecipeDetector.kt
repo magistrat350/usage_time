@@ -84,6 +84,7 @@ object RecipeDetector {
 
     /** Grund für eine Ausnahme oder null, wenn ganz normal gezählt/bestraft wird. */
     fun exemptReason(ctx: Context, prefs: Prefs, fg: String?, now: Long): String? {
+        if (prefs.pausedUntil > now) return "pausiert (noch ${fmtDuration(prefs.pausedUntil - now)})"
         if (prefs.cookingUntil > now) return "Kochmodus (noch ${fmtDuration(prefs.cookingUntil - now)})"
         if (fg == null) return null
         if (fg == ctx.packageName) return "Checker-Schreck selbst"

@@ -71,6 +71,12 @@ class Prefs(context: Context) {
     var nightEnabled by BoolPref(s, "night_enabled", true)
     var nightStartHour by IntPref(s, "night_start_hour", 22)
     var nightEndHour by IntPref(s, "night_end_hour", 6)
+
+    /** So viele Minuten normale Nutzung sind nachts noch drin, bevor Stufe 3 gilt (0 = sofort). */
+    var nightBudgetMin by IntPref(s, "night_budget_min", 15)
+
+    /** So oft pro Woche darf der Nachtmodus im Voraus ohne Hürde verschoben werden. */
+    var nightDelaysPerWeek by IntPref(s, "night_delays_per_week", 2)
     var morningBlockEnabled by BoolPref(s, "morning_block_enabled", true)
     var morningBlockMin by IntPref(s, "morning_block_min", 30)
     var dayStrictEnabled by BoolPref(s, "day_strict_enabled", true)
@@ -141,6 +147,16 @@ class Prefs(context: Context) {
     var serviceStartsToday by IntPref(st, "service_starts_today", 0)
 
     // Zeitfenster
+    var nightKey by StringPref(st, "night_key", "")
+    var nightUsedMs by LongPref(st, "night_used_ms", 0L)
+    var nightAlertKey by StringPref(st, "night_alert_key", "")
+    var nightDelayKey by StringPref(st, "night_delay_key", "")
+    var nightDelayMin by IntPref(st, "night_delay_min", 0)
+    var nightDelayLog by StringPref(st, "night_delay_log", "")
+
+    /** Überwachung pausiert bis zu diesem Zeitpunkt (läuft danach von selbst weiter). */
+    var pausedUntil by LongPref(st, "paused_until", 0L)
+
     var morningBlockDay by StringPref(st, "morning_block_day", "")
     var morningBlockUntil by LongPref(st, "morning_block_until", 0L)
 

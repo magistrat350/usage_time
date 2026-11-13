@@ -49,6 +49,9 @@ object Guard {
 
     fun stopChange() = Change("stop", "", "", "Überwachung stoppen")
 
+    fun pauseChange(minutes: Int) =
+        Change("pause", "", minutes.toString(), "Überwachung ${fmtDuration(minutes * 60_000L)} pausieren")
+
     fun exemptChange(pkg: String, label: String) = Change("exempt", "", pkg, "Ausnahme-App hinzufügen: $label")
 
     fun autoChange(pkg: String, label: String) = Change("auto", "", pkg, "Rezept-App wieder zulassen: $label")
@@ -61,6 +64,7 @@ object Guard {
             "exempt" -> p.extraExempt = p.extraExempt + c.value
             "auto" -> p.autoRecipeDisabled = p.autoRecipeDisabled - c.value
             "stop" -> MonitorService.stop(ctx)
+            "pause" -> c.value.toIntOrNull()?.let { p.pausedUntil = System.currentTimeMillis() + it * 60_000L }
         }
     }
 
@@ -174,7 +178,7 @@ object Guard {
     fun schedule(p: Prefs, c: Change, now: Long) {
         // Eine neue Planung für dieselbe Einstellung ersetzt die alte
         val rest = pending(p).filterNot {
-            it.change.kind == c.kind && it.change.id == c.id && (c.kind in setOf("int", "bool", "stop") || it.change.value == c.value)
+            it.change.kind == c.kind && it.change.id == c.id && (c.kind in setOf("int", "bool", "stop", "pause") || it.change.value == c.value)
         }
         save(p, rest + Pending(now + DELAY_MS, c))
     }
