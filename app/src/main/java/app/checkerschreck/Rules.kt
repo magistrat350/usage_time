@@ -78,10 +78,19 @@ object Rules {
         { it.cookingPerDay }, { p, v -> p.cookingPerDay = v })
     val GUARD_MODE = IntSetting("guard_mode", "Schummel-Schutz", "", Loose.DOWN,
         { it.guardMode }, { p, v -> p.guardMode = v }, format = { Guard.MODE_NAMES.getOrElse(it) { "?" } })
-    val NIGHT_START = IntSetting("night_start", "Nachtmodus ab", "", Loose.UP,
-        { it.nightStartHour }, { p, v -> p.nightStartHour = v }, format = { hour(it) })
-    val NIGHT_END = IntSetting("night_end", "Nachtmodus bis", "", Loose.DOWN,
-        { it.nightEndHour }, { p, v -> p.nightEndHour = v }, format = { hour(it) })
+    val NIGHT_HOURS = IntSetting("night_hours", "Dauer des Nachtmodus", "Stunden", Loose.DOWN,
+        { it.nightHours }, { p, v -> p.nightHours = v })
+
+    private val DAY_NAMES = listOf("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")
+
+    private fun clockOf(minutes: Int) =
+        "%d:%02d Uhr".format((minutes / 60) % 24, minutes % 60) + if (minutes >= 1440) " (nach Mitternacht)" else ""
+
+    /** Wochenplan: pro Wochentag der Beginn des Nachtmodus. Später = lockerer. */
+    val NIGHT_DAYS: List<IntSetting> = DAY_NAMES.mapIndexed { i, name ->
+        IntSetting("night_day_$i", "$name ab", "", Loose.UP,
+            { it.nightStartMin(i) }, { p, v -> p.setNightStartMin(i, v) }, format = { clockOf(it) })
+    }
     val NIGHT_BUDGET = IntSetting("night_budget", "Nacht-Budget, bevor Stufe 3 gilt", "min", Loose.UP,
         { it.nightBudgetMin }, { p, v -> p.nightBudgetMin = v })
     val NIGHT_DELAYS = IntSetting("night_delays", "Geplante Aufschübe pro Woche", "×", Loose.UP,
@@ -132,11 +141,11 @@ object Rules {
     val WEEKLY_REPORT = BoolSetting("weekly_report", "Wochenbericht am Sonntagabend", null,
         { it.weeklyReport }, { p, v -> p.weeklyReport = v })
 
-    val ints: Map<String, IntSetting> = listOf(
+    val ints: Map<String, IntSetting> = (NIGHT_DAYS + listOf(
         SESSION_LIMIT, ESCALATION_STEP, DAILY_LIMIT, RESET_PAUSE, MAX_LEVEL, ADAPTIVE_PCT, YOUTUBE_LIMIT,
         CHECK_BUDGET, BURST_COUNT, BURST_WINDOW, BURST_PENALTY, SHORT_CHECK, COOKING_MIN, COOKING_PER_DAY,
-        GUARD_MODE, NIGHT_START, NIGHT_END, NIGHT_BUDGET, NIGHT_DELAYS, MORNING_MIN, DAY_START, DAY_END, DAY_PCT, DOOM_FACTOR,
-    ).associateBy { it.id }
+        GUARD_MODE, NIGHT_HOURS, NIGHT_BUDGET, NIGHT_DELAYS, MORNING_MIN, DAY_START, DAY_END, DAY_PCT, DOOM_FACTOR,
+    )).associateBy { it.id }
 
     val bools: Map<String, BoolSetting> = listOf(
         ALWAYS_UGLY, ADAPTIVE, YOUTUBE_KICK, UNLOCK_NUDGE, GRAYSCALE, INVERSION, VIBRATE, UGLY_FONT, UGLY_ANIM,

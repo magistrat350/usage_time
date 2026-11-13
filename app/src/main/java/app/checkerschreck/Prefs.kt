@@ -69,8 +69,19 @@ class Prefs(context: Context) {
 
     // Zeitfenster
     var nightEnabled by BoolPref(s, "night_enabled", true)
+    /** Alte Einstellung (ein Beginn für alle Tage); dient noch als Startwert für den Wochenplan. */
     var nightStartHour by IntPref(s, "night_start_hour", 22)
-    var nightEndHour by IntPref(s, "night_end_hour", 6)
+
+    /** So lange dauert der Nachtmodus ab seinem Beginn. */
+    var nightHours by IntPref(s, "night_hours", 8)
+
+    /**
+     * Wochenplan: Beginn des Nachtmodus in Minuten ab 0 Uhr des Wochentags [day] (0 = Montag).
+     * Werte über 1440 liegen nach Mitternacht, z. B. 1500 = 1:00 Uhr am Folgetag.
+     */
+    fun nightStartMin(day: Int): Int = s.getInt("night_start_min_$day", nightStartHour * 60)
+
+    fun setNightStartMin(day: Int, minutes: Int) = s.edit().putInt("night_start_min_$day", minutes).apply()
 
     /** So viele Minuten normale Nutzung sind nachts noch drin, bevor Stufe 3 gilt (0 = sofort). */
     var nightBudgetMin by IntPref(s, "night_budget_min", 15)

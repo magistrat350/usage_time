@@ -8,7 +8,7 @@ object Schedule {
      * [night]: Das Nachtfenster läuft (ein Aufschub ist schon eingerechnet).
      * [nightKey]: Kennung der laufenden bzw. nächsten Nacht (Datum ihres Beginns).
      */
-    data class State(val night: Boolean, val dayStrict: Boolean, val nightKey: String)
+    data class State(val night: Boolean, val dayStrict: Boolean, val nightKey: String, val nightEnd: Long)
 
     private const val HOUR_MS = 3600_000L
 
@@ -20,42 +20,51 @@ object Schedule {
     private fun inWindow(h: Int, start: Int, end: Int) =
         if (start <= end) h in start until end else (h >= start || h < end)
 
-    private fun atHour(now: Long, hour: Int): Long = Calendar.getInstance().apply {
-        timeInMillis = now
-        set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-    }.timeInMillis
+    /**
+     * Eine Nacht aus dem Wochenplan. [key] ist das Datum des Wochentags, zu dem sie gehört
+     * ("Montag" = die Nacht von Montag auf Dienstag, auch wenn sie erst nach Mitternacht beginnt).
+     */
+    data class Night(val start: Long, val end: Long, val inside: Boolean, val key: String)
 
-    /** Beginn des Nachtfensters, in dem [now] liegt (sonst des nächsten), und ob [now] darin liegt. */
-    fun nightWindow(p: Prefs, now: Long): Pair<Long, Boolean> {
-        val hours = ((p.nightEndHour - p.nightStartHour) % 24 + 24) % 24
-        val len = (if (hours == 0) 24 else hours) * HOUR_MS
-        val today = atHour(now, p.nightStartHour)
-        val yesterday = today - 24 * HOUR_MS
-        return when {
-            now >= yesterday && now < yesterday + len -> yesterday to true
-            now >= today && now < today + len -> today to true
-            now < today -> today to false
-            else -> today + 24 * HOUR_MS to false
-        }
+    /** 0 = Montag ... 6 = Sonntag */
+    private fun dayIndex(ts: Long): Int =
+        (Calendar.getInstance().apply { timeInMillis = ts }.get(Calendar.DAY_OF_WEEK) + 5) % 7
+
+    fun nightLenMs(p: Prefs) = p.nightHours.coerceIn(1, 14) * HOUR_MS
+
+    /** Die Nacht, die zum Tag mit Mitternacht [dayStart] gehört. */
+    private fun nightOf(p: Prefs, dayStart: Long, now: Long): Night {
+        val start = dayStart + p.nightStartMin(dayIndex(dayStart + 12 * HOUR_MS)) * 60_000L
+        val end = start + nightLenMs(p)
+        return Night(start, end, now >= start && now < end, Analyzer.dayKey(dayStart + 12 * HOUR_MS))
+    }
+
+    /** Die Nacht, in der [now] liegt, sonst die nächste. */
+    fun nightWindow(p: Prefs, now: Long): Night {
+        val today = Analyzer.startOfDay(now)
+        val yesterday = nightOf(p, Analyzer.startOfDay(today - 12 * HOUR_MS), now)
+        if (yesterday.inside) return yesterday
+        val tonight = nightOf(p, today, now)
+        if (tonight.inside || now < tonight.start) return tonight
+        return nightOf(p, Analyzer.startOfDay(today + 36 * HOUR_MS), now)
     }
 
     /** Für diese Nacht eingestellter Aufschub in Minuten. */
     fun nightDelayMin(p: Prefs, nightKey: String) = if (p.nightDelayKey == nightKey) p.nightDelayMin else 0
 
-    /** Wann der Nachtmodus in der laufenden bzw. nächsten Nacht wirklich beginnt. */
+    /** Wann der Nachtmodus in der laufenden bzw. nächsten Nacht wirklich beginnt (Aufschub eingerechnet). */
     fun effectiveNightStart(p: Prefs, now: Long): Long {
-        val (start, _) = nightWindow(p, now)
-        return start + nightDelayMin(p, Analyzer.dayKey(start)) * 60_000L
+        val n = nightWindow(p, now)
+        return n.start + nightDelayMin(p, n.key) * 60_000L
     }
 
     fun state(p: Prefs, now: Long): State {
-        val (start, inside) = nightWindow(p, now)
-        val key = Analyzer.dayKey(start)
+        val n = nightWindow(p, now)
         return State(
-            night = p.nightEnabled && inside && now >= start + nightDelayMin(p, key) * 60_000L,
+            night = p.nightEnabled && n.inside && now >= n.start + nightDelayMin(p, n.key) * 60_000L,
             dayStrict = p.dayStrictEnabled && inWindow(hour(now), p.dayStartHour, p.dayEndHour),
-            nightKey = key,
+            nightKey = n.key,
+            nightEnd = n.end,
         )
     }
 
@@ -75,27 +84,19 @@ object Schedule {
      * und das Wochenkontingent reicht. Spontan mitten in der Nacht kostet einen abgetippten Satz.
      */
     fun delayIsFree(p: Prefs, now: Long, minutes: Int): Boolean {
-        val (start, inside) = nightWindow(p, now)
-        val key = Analyzer.dayKey(start)
-        if (minutes <= nightDelayMin(p, key)) return true
-        if (inside) return false
-        return key in delayLog(p) || plannedDelaysUsed(p, now) < p.nightDelaysPerWeek
+        val n = nightWindow(p, now)
+        if (minutes <= nightDelayMin(p, n.key)) return true
+        if (n.inside) return false
+        return n.key in delayLog(p) || plannedDelaysUsed(p, now) < p.nightDelaysPerWeek
     }
 
     fun setNightDelay(p: Prefs, now: Long, minutes: Int, planned: Boolean) {
-        val key = Analyzer.dayKey(nightWindow(p, now).first)
+        val key = nightWindow(p, now).key
         p.nightDelayKey = key
         p.nightDelayMin = minutes.coerceAtLeast(0)
         if (planned && minutes > 0 && key !in delayLog(p)) {
             p.nightDelayLog = (delayLog(p) + key).takeLast(30).joinToString(",")
         }
-    }
-
-    /** Minuten bis zur nächsten vollen Stunde [hour]. */
-    fun minutesUntilHour(now: Long, hour: Int): Int {
-        var t = atHour(now, hour)
-        if (t <= now) t += 24 * HOUR_MS
-        return ((t - now) / 60_000L).toInt().coerceAtLeast(1)
     }
 
     fun clock(ts: Long): String {

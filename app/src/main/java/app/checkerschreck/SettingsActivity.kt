@@ -40,8 +40,14 @@ class SettingsActivity : AppCompatActivity() {
 
         val times = col.card("Zeitfenster")
         switch(times, Rules.NIGHT)
-        slider(times, Rules.NIGHT_START, 18, 23)
-        slider(times, Rules.NIGHT_END, 4, 10)
+        slider(times, Rules.NIGHT_HOURS, 6, 10)
+        note(
+            times,
+            "Wochenplan: Lege pro Wochentag fest, wann der Nachtmodus beginnt (18 Uhr bis 3 Uhr früh, in " +
+                "30-Minuten-Schritten). Er dauert dann immer so viele Stunden wie oben eingestellt. „Montag“ " +
+                "meint die Nacht von Montag auf Dienstag. Später stellen ist eine Lockerung.",
+        )
+        Rules.NIGHT_DAYS.forEach { slider(times, it, 18 * 60, 27 * 60, step = 30) }
         slider(times, Rules.NIGHT_BUDGET, 0, 60, step = 5)
         slider(times, Rules.NIGHT_DELAYS, 0, 7)
         note(

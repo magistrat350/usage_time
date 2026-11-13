@@ -349,14 +349,18 @@ class MainActivity : AppCompatActivity() {
 
     /** Statt die Überwachung ganz zu stoppen, lässt sie sich befristet pausieren. Danach läuft sie von selbst weiter. */
     private fun askPauseOrStop() {
-        val end = prefs.nightEndHour
-        val options = listOf(
-            "30 Minuten pausieren" to 30,
-            "1 Stunde pausieren" to 60,
-            "2 Stunden pausieren" to 120,
-            "Bis $end Uhr pausieren" to Schedule.minutesUntilHour(System.currentTimeMillis(), end),
-            "Ganz stoppen (läuft nicht von selbst wieder an)" to -1,
-        )
+        val now = System.currentTimeMillis()
+        val night = Schedule.nightWindow(prefs, now)
+        val untilMorning = ((night.end - now) / 60_000L).toInt()
+        val options = ArrayList<Pair<String, Int>>()
+        options += "30 Minuten pausieren" to 30
+        options += "1 Stunde pausieren" to 60
+        options += "2 Stunden pausieren" to 120
+        // "Bis morgen früh" nur anbieten, wenn die Nacht läuft oder bald beginnt
+        if (untilMorning in 1..12 * 60) {
+            options += "Bis ${Schedule.clock(night.end)} Uhr pausieren (Ende der Nacht)" to untilMorning
+        }
+        options += "Ganz stoppen (läuft nicht von selbst wieder an)" to -1
         MaterialAlertDialogBuilder(this)
             .setTitle("Pausieren oder stoppen?")
             .setItems(options.map { it.first }.toTypedArray()) { _, i ->
@@ -377,9 +381,10 @@ class MainActivity : AppCompatActivity() {
      */
     private fun askNightDelay() {
         val now = System.currentTimeMillis()
-        val (start, inside) = Schedule.nightWindow(prefs, now)
-        val key = Analyzer.dayKey(start)
-        val current = Schedule.nightDelayMin(prefs, key)
+        val night = Schedule.nightWindow(prefs, now)
+        val start = night.start
+        val inside = night.inside
+        val current = Schedule.nightDelayMin(prefs, night.key)
         val steps = (if (current > 0) listOf(0) else emptyList()) + listOf(30, 60, 90, 120, 180)
         val labels = steps.map { m ->
             val at = Schedule.clock(start + m * 60_000L)
@@ -459,7 +464,8 @@ class MainActivity : AppCompatActivity() {
                     parts += "Noch ${Escalation.minutesToNextLevel(prefs, s.sessionMs, factor)} min bis Stufe $next"
                 }
                 if (s.nightLeftMs > 0) {
-                    parts += "🌙 Nacht-Budget: noch ${fmtDuration(s.nightLeftMs + 59_000)}, dann Stufe 3 bis ${prefs.nightEndHour} Uhr"
+                    val until = Schedule.clock(Schedule.nightWindow(prefs, now).end)
+                    parts += "🌙 Nacht-Budget: noch ${fmtDuration(s.nightLeftMs + 59_000)}, dann Stufe 3 bis $until Uhr"
                 }
                 if (s.dayStrict) parts += "☀️ Tagsüber strenger: Session-Limit nur ${prefs.dayStrictPct} %"
                 if (s.doomscroll) parts += "📜 Endlos-Scrollen erkannt: Uhr läuft ${prefs.doomscrollFactor}× so schnell"
@@ -484,11 +490,13 @@ class MainActivity : AppCompatActivity() {
             if (Schedule.morningBlocked(prefs, now)) android.view.View.VISIBLE else android.view.View.GONE
         refreshDiagnosis(snap, now)
         nightBtn.visibility = if (prefs.nightEnabled) android.view.View.VISIBLE else android.view.View.GONE
+        val tonight = Schedule.nightWindow(prefs, now)
         val nightStart = Schedule.effectiveNightStart(prefs, now)
-        nightBtn.text = if (Schedule.nightDelayMin(prefs, Schedule.state(prefs, now).nightKey) > 0 && now < nightStart) {
-            "🌙 Nachtmodus heute erst ab ${Schedule.clock(nightStart)} Uhr (ändern)"
-        } else {
-            "🌙 Nachtmodus heute später"
+        val span = "${Schedule.clock(nightStart)} bis ${Schedule.clock(tonight.end)} Uhr"
+        nightBtn.text = when {
+            now >= nightStart -> "🌙 Nachtmodus läuft bis ${Schedule.clock(tonight.end)} Uhr"
+            Schedule.nightDelayMin(prefs, tonight.key) > 0 -> "🌙 Heute verschoben: $span (ändern)"
+            else -> "🌙 Nächste Nacht: $span (heute später?)"
         }
         val cooking = prefs.cookingUntil > now
         cookBtn.text = if (cooking) {

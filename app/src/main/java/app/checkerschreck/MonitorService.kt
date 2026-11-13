@@ -75,6 +75,7 @@ class MonitorService : Service() {
     private var lastMinuteJobs = 0L
     private var lastUsable = false
     private var nightLeftMs = -1L
+    private var nightEnd = 0L
     private var lastPoke = 0L
     private var lastError = ""
     private var audio: AudioManager? = null
@@ -388,6 +389,7 @@ class MonitorService : Service() {
         // Nachts ist erst ein kleines Budget normale Nutzung drin, danach gilt Stufe 3 bis zum Morgen.
         // Ausnahmen (Telefonate, Rezepte, Pause) zehren nicht am Budget.
         nightWindow = sched.night
+        nightEnd = sched.nightEnd
         val nightBudgetMs = prefs.nightBudgetMin.coerceAtLeast(0) * 60_000L
         night = nightWindow && nightUsedMs >= nightBudgetMs
         nightLeftMs = if (nightWindow) (nightBudgetMs - nightUsedMs).coerceAtLeast(0) else -1L
@@ -477,7 +479,7 @@ class MonitorService : Service() {
                 prefs.nightAlertKey = sched.nightKey
                 alert(
                     "🌙 Nacht-Budget aufgebraucht",
-                    "Ab jetzt Stufe 3 bis ${prefs.nightEndHour} Uhr. Telefonate bleiben ausgenommen.",
+                    "Ab jetzt Stufe 3 bis ${Schedule.clock(sched.nightEnd)} Uhr. Telefonate bleiben ausgenommen.",
                 )
             }
         }
@@ -589,7 +591,7 @@ class MonitorService : Service() {
         }
         if (night) {
             l += "🌙 Nachtmodus"
-            l += "Bis ${prefs.nightEndHour} Uhr bleibt es so. Schlaf gut."
+            l += "Bis ${Schedule.clock(nightEnd)} Uhr bleibt es so. Schlaf gut."
             l += "${prefs.checksToday} Checks heute"
             return l
         }
